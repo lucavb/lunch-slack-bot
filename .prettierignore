@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+*.zip
+
+# Terraform
+.terraform/
+terraform.tfstate*
+*.tfplan
+
+# Logs
+*.log
+
+# Coverage
+coverage/
+
+# Git
+.git/
+
+# Environment files
+.env*
+
+# Cache
+.cache/
+.temp/ 

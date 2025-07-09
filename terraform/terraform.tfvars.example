@@ -1,0 +1,23 @@
+# Terraform Variables Template
+# Copy this file to terraform.tfvars and fill in your actual values
+# terraform.tfvars is excluded from git to protect secrets
+
+# Required: Slack webhook URL (keep this secret!)
+slack_webhook_url = "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
+
+# Location settings
+location_name = "Munich"
+location_lat  = 48.1351
+location_lon  = 11.5820
+
+# AWS settings
+aws_region = "eu-central-1"
+
+# Optional: For multiple deployments (different teams/channels)
+deployment_suffix = ""  # e.g., "team-alpha", "berlin-office", etc.
+
+# Optional: Advanced settings
+environment         = "prod"
+lambda_timeout      = 60
+lambda_memory       = 256
+log_retention_days  = 14 
