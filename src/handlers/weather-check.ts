@@ -29,9 +29,9 @@ export const handler: Handler = async (event, context) => {
 
         // Create weather configuration from config
         const weatherConfig = {
-            minTemperature: config.minTemperature,
-            goodWeatherConditions: config.goodWeatherConditions,
             badWeatherConditions: config.badWeatherConditions,
+            goodWeatherConditions: config.goodWeatherConditions,
+            minTemperature: config.minTemperature,
             weatherCheckHour: config.weatherCheckHour,
         } as const satisfies WeatherConfig;
 

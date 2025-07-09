@@ -4,8 +4,8 @@ import { OpenMeteoHourlyPoint } from '../schemas/openmeteo.schema';
 
 export interface WeatherConfig {
     minTemperature: number;
-    goodWeatherConditions: string[];
-    badWeatherConditions: string[];
+    goodWeatherConditions: readonly string[];
+    badWeatherConditions: readonly string[];
     weatherCheckHour: number;
 }
 
