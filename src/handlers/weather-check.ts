@@ -7,18 +7,16 @@ import { WeatherService, WeatherConfig } from '../services/weather.service';
 import { WebhookSlackServiceImpl } from '../implementations/webhook-slack';
 import { DynamoDBStorageService } from '../implementations/dynamodb-storage';
 
-// Schema to validate Lambda event structure with overrides
 const lambdaEventSchema = z
     .object({
         overrides: eventOverridesSchema,
     })
-    .passthrough(); // Allow additional properties from Lambda event
+    .passthrough();
 
 export const handler: Handler = async (event: unknown, context) => {
     console.log('Weather check handler started', { event, context });
 
     try {
-        // Validate event structure and overrides in one go
         const parseResult = lambdaEventSchema.safeParse(event);
 
         if (!parseResult.success) {
@@ -35,20 +33,17 @@ export const handler: Handler = async (event: unknown, context) => {
         const eventOverrides: EventOverrides = parseResult.data.overrides;
         console.log('Event overrides:', eventOverrides);
 
-        // Get configuration with validated event overrides
         const config = getConfig(eventOverrides);
         const coordinates = getCoordinates(eventOverrides);
         console.log('Using configuration:', {
             ...config,
-            slackWebhookUrl: '[REDACTED]', // Don't log webhook URL for security
+            slackWebhookUrl: '[REDACTED]',
         });
         console.log('Using coordinates:', coordinates);
 
-        // Initialize services with dependency injection
         const httpClient = new FetchHttpClient();
         const weatherApi = new OpenMeteoApi(httpClient);
 
-        // Create weather configuration from config
         const weatherConfig = {
             badWeatherConditions: config.badWeatherConditions,
             goodWeatherConditions: config.goodWeatherConditions,
@@ -60,7 +55,6 @@ export const handler: Handler = async (event: unknown, context) => {
         const slackService = new WebhookSlackServiceImpl(config.slackWebhookUrl, httpClient);
         const storageService = new DynamoDBStorageService(config.dynamodbTableName, config.awsRegion);
 
-        // Check if we already sent a message today
         const alreadySentToday = await storageService.hasMessageBeenSentToday(
             'weather_reminder',
             coordinates.locationName,
@@ -75,13 +69,12 @@ export const handler: Handler = async (event: unknown, context) => {
                     location: coordinates.locationName,
                     config: {
                         ...config,
-                        slackWebhookUrl: '[REDACTED]', // Don't return webhook URL for security
+                        slackWebhookUrl: '[REDACTED]',
                     },
                 }),
             };
         }
 
-        // Check weekly message limits
         const canSendThisWeek = await storageService.canSendMessageThisWeek(
             coordinates.locationName,
             'weather_reminder',
@@ -98,13 +91,12 @@ export const handler: Handler = async (event: unknown, context) => {
                     weeklyStats,
                     config: {
                         ...config,
-                        slackWebhookUrl: '[REDACTED]', // Don't return webhook URL for security
+                        slackWebhookUrl: '[REDACTED]',
                     },
                 }),
             };
         }
 
-        // Get weather condition
         const weatherCondition = await weatherService.isWeatherGood(coordinates);
         console.log('Weather condition:', weatherCondition);
 
@@ -112,14 +104,12 @@ export const handler: Handler = async (event: unknown, context) => {
         let messageType = '';
 
         if (weatherCondition.isGood) {
-            // Send lunch reminder for good weather
             await slackService.sendWeatherReminder(
                 weatherCondition.temperature,
                 weatherCondition.description,
                 coordinates.locationName,
             );
 
-            // Record that we sent the reminder
             await storageService.recordMessageSent(
                 'weather_reminder',
                 coordinates.locationName,
@@ -131,7 +121,6 @@ export const handler: Handler = async (event: unknown, context) => {
             messageType = 'weather_reminder';
             console.log('Sent weather reminder successfully');
         } else {
-            // For bad weather, we still want to respect weekly limits but use different logic
             const canSendWarning = await storageService.canSendMessageThisWeek(
                 coordinates.locationName,
                 'weather_warning',
@@ -142,14 +131,12 @@ export const handler: Handler = async (event: unknown, context) => {
             );
 
             if (canSendWarning && !alreadySentWarningToday) {
-                // Send warning for bad weather
                 await slackService.sendWeatherWarning(
                     weatherCondition.temperature,
                     weatherCondition.description,
                     coordinates.locationName,
                 );
 
-                // Record that we sent the warning
                 await storageService.recordMessageSent(
                     'weather_warning',
                     coordinates.locationName,
@@ -165,7 +152,6 @@ export const handler: Handler = async (event: unknown, context) => {
             }
         }
 
-        // Clean up old records (older than 30 days)
         await storageService.cleanupOldRecords(30);
 
         return {
@@ -186,7 +172,7 @@ export const handler: Handler = async (event: unknown, context) => {
                 weeklyStats,
                 config: {
                     ...config,
-                    slackWebhookUrl: '[REDACTED]', // Don't return webhook URL for security
+                    slackWebhookUrl: '[REDACTED]',
                 },
             }),
         };
