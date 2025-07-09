@@ -5,7 +5,7 @@ export class FetchHttpClient implements HttpClient {
         return this.request<T>(url, { ...options, method: 'GET' });
     }
 
-    async post<T>(url: string, body?: any, options?: RequestInit): Promise<T> {
+    async post<T>(url: string, body?: unknown, options?: RequestInit): Promise<T> {
         return this.request<T>(url, {
             ...options,
             method: 'POST',
@@ -17,7 +17,7 @@ export class FetchHttpClient implements HttpClient {
         });
     }
 
-    async put<T>(url: string, body?: any, options?: RequestInit): Promise<T> {
+    async put<T>(url: string, body?: unknown, options?: RequestInit): Promise<T> {
         return this.request<T>(url, {
             ...options,
             method: 'PUT',

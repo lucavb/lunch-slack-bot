@@ -2,7 +2,7 @@ import { DynamoDBClient, PutItemCommand, QueryCommand, ScanCommand, DeleteItemCo
 import { marshall, unmarshall } from '@aws-sdk/util-dynamodb';
 import { StorageService, MessageRecord, WeeklyMessageStats } from '../interfaces/storage.interface';
 import { MAX_MESSAGES_PER_WEEK } from '../utils/constants';
-import { format, startOfWeek, endOfWeek, subDays, startOfDay } from 'date-fns';
+import { format, startOfWeek, endOfWeek, subDays } from 'date-fns';
 
 export class DynamoDBStorageService implements StorageService {
     private client: DynamoDBClient;
@@ -65,7 +65,7 @@ export class DynamoDBStorageService implements StorageService {
             });
 
             const result = await this.client.send(command);
-            const messages = result.Items ? result.Items.map((item: any) => unmarshall(item) as MessageRecord) : [];
+            const messages = result.Items ? result.Items.map((item) => unmarshall(item) as MessageRecord) : [];
 
             const messageCount = messages.length;
             const lastMessageDate =
@@ -146,7 +146,7 @@ export class DynamoDBStorageService implements StorageService {
                 return [];
             }
 
-            return result.Items.map((item: any) => unmarshall(item) as MessageRecord).sort(
+            return result.Items.map((item) => unmarshall(item) as MessageRecord).sort(
                 (a: MessageRecord, b: MessageRecord) => b.timestamp - a.timestamp,
             ); // Sort by timestamp descending
         } catch (error) {
@@ -181,7 +181,7 @@ export class DynamoDBStorageService implements StorageService {
             }
 
             // Delete old records
-            const deletePromises = scanResult.Items.map(async (item: any) => {
+            const deletePromises = scanResult.Items.map(async (item) => {
                 const record = unmarshall(item) as MessageRecord;
                 const deleteCommand = new DeleteItemCommand({
                     TableName: this.tableName,

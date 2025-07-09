@@ -74,7 +74,7 @@ describe('WebhookSlackServiceImpl', () => {
 
             await slackService.sendWeatherReminder(18, 'partly cloudy', 'Berlin');
 
-            const call = (mockHttpClient.post as any).mock.calls[0];
+            const call = (mockHttpClient.post as ReturnType<typeof vi.fn>).mock.calls[0];
             const payload = call[1];
 
             expect(payload.text).toContain('18°C');
@@ -87,7 +87,7 @@ describe('WebhookSlackServiceImpl', () => {
 
             await slackService.sendWeatherReminder(20, 'sunny', 'Munich');
 
-            const call = (mockHttpClient.post as any).mock.calls[0];
+            const call = (mockHttpClient.post as ReturnType<typeof vi.fn>).mock.calls[0];
             const payload = call[1];
 
             expect(payload.blocks).toEqual(
@@ -136,7 +136,7 @@ describe('WebhookSlackServiceImpl', () => {
 
             await slackService.sendWeatherWarning(2, 'snow', 'Vienna');
 
-            const call = (mockHttpClient.post as any).mock.calls[0];
+            const call = (mockHttpClient.post as ReturnType<typeof vi.fn>).mock.calls[0];
             const payload = call[1];
 
             expect(payload.text).toContain('2°C');
@@ -149,7 +149,7 @@ describe('WebhookSlackServiceImpl', () => {
 
             await slackService.sendWeatherWarning(5, 'rainy', 'Munich');
 
-            const call = (mockHttpClient.post as any).mock.calls[0];
+            const call = (mockHttpClient.post as ReturnType<typeof vi.fn>).mock.calls[0];
             const payload = call[1];
 
             expect(payload.blocks).toEqual(

@@ -25,12 +25,17 @@ vi.mock('@aws-sdk/util-dynamodb', () => ({
 
 describe('DynamoDBStorageService', () => {
     let storageService: DynamoDBStorageService;
-    let mockClient: any;
+    let mockClient: {
+        send: ReturnType<typeof vi.fn>;
+    };
 
     beforeEach(() => {
         vi.clearAllMocks();
         storageService = new DynamoDBStorageService('test-table', 'eu-central-1');
-        mockClient = (DynamoDBClient as any).mock.results[0].value;
+        mockClient = (DynamoDBClient as unknown as { mock: { results: [{ value: unknown }] } }).mock.results[0]
+            .value as {
+            send: ReturnType<typeof vi.fn>;
+        };
     });
 
     describe('hasMessageBeenSentToday', () => {

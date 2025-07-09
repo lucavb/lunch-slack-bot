@@ -1,6 +1,5 @@
 import { WeatherApi, WeatherService as WeatherServiceInterface } from '../interfaces/weather-api.interface';
 import { WeatherCondition, Coordinates } from '../types/index';
-import { ERROR_MESSAGES } from '../utils/constants';
 import { OpenMeteoHourlyPoint } from '../schemas/openmeteo.schema';
 
 export interface WeatherConfig {

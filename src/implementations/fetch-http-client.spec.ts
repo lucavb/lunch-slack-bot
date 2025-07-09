@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { FetchHttpClient } from './fetch-http-client';
 
 // Mock fetch for testing
-const mockFetch = (response: any, ok: boolean = true, status: number = 200) => {
+const mockFetch = (response: unknown, ok: boolean = true, status: number = 200) => {
     global.fetch = async () =>
         ({
             ok,

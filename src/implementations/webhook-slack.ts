@@ -8,7 +8,7 @@ export class WebhookSlackServiceImpl implements WebhookSlackService {
         private httpClient: HttpClient,
     ) {}
 
-    async sendMessage(text: string, blocks?: any[]): Promise<void> {
+    async sendMessage(text: string, blocks?: unknown[]): Promise<void> {
         try {
             const payload = {
                 text,

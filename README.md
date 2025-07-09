@@ -53,6 +53,7 @@ chmod +x setup-bot.sh
 ```
 
 The script will guide you through:
+
 - ✅ Creating `terraform.tfvars` with your webhook URL
 - ✅ Setting up remote state backend (S3 + DynamoDB)
 - ✅ Building and deploying the application
@@ -111,6 +112,7 @@ This creates separate resources:
 **If you used the setup script:** You're done! 🎉
 
 **If you configured manually:**
+
 ```bash
 # Build the application (from project root)
 npm run build
@@ -125,6 +127,7 @@ terraform apply
 ### 4. Multiple Deployments (Optional)
 
 **Using the setup script:**
+
 ```bash
 # For each team, run the setup script in a new workspace
 terraform workspace new team-alpha
@@ -137,6 +140,7 @@ terraform workspace new team-beta
 ```
 
 **Manual approach:**
+
 ```bash
 # Deploy for Team Alpha
 echo 'deployment_suffix = "team-alpha"' >> terraform.tfvars
@@ -293,12 +297,15 @@ All parameters are optional and fall back to defaults if not provided:
 ## 🔒 Security & Secrets Management
 
 ### Automated Setup (Recommended)
+
 The `setup-bot.sh` script handles all security aspects automatically:
+
 - Creates `terraform.tfvars` with proper validation
 - Excludes secrets from git (already configured in `.gitignore`)
 - Sets up remote state backend for team collaboration
 
 ### Local Development (Manual)
+
 ```bash
 cd terraform
 cp terraform.tfvars.example terraform.tfvars
@@ -306,26 +313,31 @@ cp terraform.tfvars.example terraform.tfvars
 ```
 
 ### Environment Variables
+
 ```bash
 export TF_VAR_slack_webhook_url="https://hooks.slack.com/services/..."
 terraform plan
 ```
 
 ### Production (AWS Secrets Manager)
+
 For production deployments, consider using AWS Secrets Manager:
+
 1. Store webhook URL in AWS Secrets Manager
 2. Uncomment the secrets management code in `terraform/secrets.tf`
 3. Update lambda.tf to use the secret
 
 ### Multiple Teams
+
 Each team should have their own `terraform.tfvars` file:
+
 ```bash
 # Team Alpha
 terraform workspace new team-alpha
 echo 'deployment_suffix = "team-alpha"' > terraform.tfvars
 echo 'slack_webhook_url = "https://hooks.slack.com/services/T123/B456/alpha"' >> terraform.tfvars
 
-# Team Beta  
+# Team Beta
 terraform workspace new team-beta
 echo 'deployment_suffix = "team-beta"' > terraform.tfvars
 echo 'slack_webhook_url = "https://hooks.slack.com/services/T123/B789/beta"' >> terraform.tfvars

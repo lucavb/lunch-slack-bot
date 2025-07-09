@@ -2,7 +2,7 @@ export interface WebhookSlackService {
     /**
      * Send a message to the configured webhook URL
      */
-    sendMessage(text: string, blocks?: any[]): Promise<void>;
+    sendMessage(text: string, blocks?: unknown[]): Promise<void>;
 
     /**
      * Send a weather reminder message
