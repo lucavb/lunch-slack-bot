@@ -15,15 +15,35 @@ export const BOT_CONFIG: BotConfig = validateBotConfig(botConfigData);
 
 export const OPEN_METEO_API_BASE_URL = 'https://api.open-meteo.com/v1/forecast';
 
-export const LUNCH_MESSAGE_TEMPLATE = (location: string, temperature: number, description: string) => `
-🌤️ Hey team! The weather looks great for lunch outside today!
+export const LUNCH_MESSAGE_TEMPLATE = (
+    location: string,
+    temperature: number,
+    description: string,
+    confirmationUrl?: string,
+) => {
+    const baseMessage = `🌤️ Hey team! The weather looks great for lunch outside today!
 
 📍 ${location}
 🌡️ ${temperature}°C at noon  
 ☀️ ${description}
 
-Anyone up for a lunch meetup in the park? React with ✅ if you're interested!
-`;
+Anyone up for a lunch meetup in the park? React with ✅ if you're interested!`;
+
+    if (confirmationUrl) {
+        return `${baseMessage}
+
+💬 *Already meeting for lunch?* <${confirmationUrl}|Click here to confirm> and we'll stop sending weather updates this week!`;
+    }
+
+    return baseMessage;
+};
+
+export const generateConfirmationUrl = (baseUrl: string, location: string): string => {
+    const url = new URL(baseUrl);
+    url.searchParams.set('action', 'confirm-lunch');
+    url.searchParams.set('location', location);
+    return url.toString();
+};
 
 export const NOON_HOUR = 12; // 12 PM / noon
 export const SCHEDULER_HOUR = 10; // 10 AM for weather check

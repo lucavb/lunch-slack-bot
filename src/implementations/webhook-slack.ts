@@ -23,8 +23,13 @@ export class WebhookSlackServiceImpl implements WebhookSlackService {
         }
     }
 
-    async sendWeatherReminder(temperature: number, description: string, locationName: string): Promise<void> {
-        const messageText = LUNCH_MESSAGE_TEMPLATE(locationName, temperature, description);
+    async sendWeatherReminder(
+        temperature: number,
+        description: string,
+        locationName: string,
+        confirmationUrl?: string,
+    ): Promise<void> {
+        const messageText = LUNCH_MESSAGE_TEMPLATE(locationName, temperature, description, confirmationUrl);
 
         const blocks = [
             {
@@ -37,7 +42,9 @@ export class WebhookSlackServiceImpl implements WebhookSlackService {
         ];
 
         await this.sendMessage(messageText, blocks);
-        console.log(`Sent weather reminder for ${locationName}: ${temperature}°C, ${description}`);
+        console.log(
+            `Sent weather reminder for ${locationName}: ${temperature}°C, ${description}${confirmationUrl ? ' with confirmation link' : ''}`,
+        );
     }
 
     async sendWeatherWarning(temperature: number, description: string, locationName: string): Promise<void> {

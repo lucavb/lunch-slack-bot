@@ -75,6 +75,12 @@ variable "log_retention_days" {
   default     = 14
 }
 
+variable "api_gateway_stage_name" {
+  description = "API Gateway deployment stage name"
+  type        = string
+  default     = "prod"
+}
+
 variable "tags" {
   description = "Common tags to be applied to all resources"
   type        = map(string)

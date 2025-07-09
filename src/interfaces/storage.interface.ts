@@ -2,7 +2,7 @@ export interface MessageRecord {
     id: string;
     date: string; // YYYY-MM-DD format
     timestamp: number;
-    messageType: 'weather_reminder' | 'weather_warning';
+    messageType: 'weather_reminder' | 'weather_warning' | 'lunch_confirmation';
     location: string;
     temperature?: number;
     weatherCondition?: string;
@@ -50,4 +50,14 @@ export interface StorageService {
      * Clean up old records (older than specified days)
      */
     cleanupOldRecords(daysToKeep: number): Promise<void>;
+
+    /**
+     * Record that the team has confirmed they met for lunch this week
+     */
+    recordLunchConfirmation(location: string): Promise<void>;
+
+    /**
+     * Check if the team has confirmed they met for lunch this week
+     */
+    hasLunchBeenConfirmedThisWeek(location: string): Promise<boolean>;
 }

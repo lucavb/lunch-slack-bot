@@ -7,6 +7,7 @@ A simple serverless weather bot that automatically sends Slack messages when wea
 - **Automatic Weather Monitoring**: Checks weather conditions every weekday at 10 AM CEST
 - **Smart Weather Logic**: Only sends messages when weather is good (>12°C, sunny/cloudy)
 - **Rate Limiting**: Maximum 2 messages per week (tracked in DynamoDB)
+- **Reply API Endpoint**: Team members can confirm lunch meetings to stop further messages
 - **Manual Testing**: Trigger from AWS Console with customizable parameters
 - **Webhook Integration**: Sends messages directly to Slack webhook URL
 
@@ -20,9 +21,16 @@ A simple serverless weather bot that automatically sends Slack messages when wea
                                 │
                                 ▼
                        ┌─────────────────┐
-                       │    DynamoDB     │
-                       │ (Rate Limiting) │
-                       └─────────────────┘
+                       │    DynamoDB     │    ┌─────────────────┐
+                       │ (Message Store) │◀───│ Team Members    │
+                       └─────────────────┘    │ (Reply API)     │
+                                ▲             └─────────────────┘
+                                │                      │
+                       ┌─────────────────┐             ▼
+                       │  Reply Lambda   │    ┌─────────────────┐
+                       │   (Confirm)     │◀───│  API Gateway    │
+                       └─────────────────┘    │   (/reply)      │
+                                              └─────────────────┘
 ```
 
 ## 🚀 Quick Start
@@ -155,6 +163,75 @@ terraform apply
 # Switch back to default workspace
 terraform workspace select default
 ```
+
+## 🔄 Reply API - Team Interaction
+
+The bot provides a Reply API endpoint that allows team members to interact with the system. Currently, it supports confirming lunch meetings to prevent further weather messages for the week.
+
+### API Endpoint
+
+After deployment, Terraform outputs the API URL:
+
+```
+https://[api-id].execute-api.[region].amazonaws.com/prod/reply
+```
+
+### Confirm Lunch Meeting
+
+When your team has confirmed they're meeting for lunch, anyone can call this endpoint to stop further weather messages for the current week:
+
+```bash
+# Basic lunch confirmation
+curl -X POST https://[api-id].execute-api.eu-central-1.amazonaws.com/prod/reply \
+  -H "Content-Type: application/json" \
+  -d '{"action": "confirm-lunch"}'
+
+# Confirm lunch for specific location
+curl -X POST https://[api-id].execute-api.eu-central-1.amazonaws.com/prod/reply \
+  -H "Content-Type: application/json" \
+  -d '{"action": "confirm-lunch", "location": "Berlin"}'
+```
+
+### Response Format
+
+**Success Response:**
+
+```json
+{
+    "action": "confirm-lunch",
+    "message": "Lunch confirmation recorded successfully",
+    "location": "Munich",
+    "confirmed": true,
+    "timestamp": "2024-01-15T10:30:00.000Z"
+}
+```
+
+**Already Confirmed:**
+
+```json
+{
+    "action": "confirm-lunch",
+    "message": "Lunch already confirmed this week",
+    "location": "Munich",
+    "alreadyConfirmed": true
+}
+```
+
+### Integration Ideas
+
+- **Slack Slash Command**: Create a Slack app that calls this endpoint
+- **Simple Web Form**: Build a basic HTML form for team members
+- **Mobile App**: Integrate into your team's mobile app
+- **Scheduled Call**: Automatically confirm if calendar shows a lunch meeting
+
+### Future Actions
+
+The Reply API is designed to be extensible. Future actions might include:
+
+- `set-preferences` - Personal weather preferences
+- `get-status` - Check current week's status
+- `pause-reminders` - Temporarily disable messages
+- `update-location` - Change default location
 
 ## 🔧 Configuration
 
@@ -345,9 +422,12 @@ echo 'slack_webhook_url = "https://hooks.slack.com/services/T123/B789/beta"' >> 
 
 ## 📊 Monitoring
 
-- **CloudWatch Logs**: `/aws/lambda/lunch-weather-bot-weather-check`
+- **CloudWatch Logs**:
+    - Weather Check: `/aws/lambda/lunch-weather-bot-weather-check`
+    - Reply API: `/aws/lambda/lunch-weather-bot-reply`
 - **DynamoDB Table**: `lunch-weather-bot-message-tracking`
 - **EventBridge Rule**: `lunch-weather-bot-schedule`
+- **API Gateway**: `lunch-weather-bot-api` (Reply endpoint)
 
 ## 🛠️ Development
 
@@ -372,6 +452,9 @@ npm run build
 ```
 src/
 ├── handlers/           # Lambda function handlers
+│   ├── weather-check.ts    # Main weather checking logic
+│   ├── reply.ts           # Reply API handler (lunch confirmation)
+│   └── *.spec.ts         # Test files
 ├── implementations/    # API implementations
 ├── interfaces/         # TypeScript interfaces
 ├── schemas/           # Zod validation schemas
@@ -381,7 +464,8 @@ src/
 
 terraform/             # Infrastructure as Code
 ├── main.tf           # Main resources
-├── lambda.tf         # Lambda function
+├── lambda.tf         # Lambda functions
+├── api-gateway.tf    # API Gateway & Reply endpoint
 ├── dynamodb.tf       # DynamoDB table
 ├── variables.tf      # Input variables
 ├── outputs.tf        # Output values

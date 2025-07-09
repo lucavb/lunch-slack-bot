@@ -7,7 +7,12 @@ export interface WebhookSlackService {
     /**
      * Send a weather reminder message
      */
-    sendWeatherReminder(temperature: number, description: string, locationName: string): Promise<void>;
+    sendWeatherReminder(
+        temperature: number,
+        description: string,
+        locationName: string,
+        confirmationUrl?: string,
+    ): Promise<void>;
 
     /**
      * Send a warning message about bad weather

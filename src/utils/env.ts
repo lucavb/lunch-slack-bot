@@ -1,12 +1,9 @@
 import { z } from 'zod';
 import { NOON_HOUR, BOT_CONFIG } from './constants';
 
-// Define the schema for environment variables
 const envSchema = z.object({
     SLACK_WEBHOOK_URL: z.string().url('SLACK_WEBHOOK_URL must be a valid URL'),
     AWS_DEFAULT_REGION: z.string().default('eu-central-1'),
-
-    // Location coordinates
     LOCATION_NAME: z.string().min(1, 'LOCATION_NAME is required'),
     LOCATION_LAT: z
         .string()
@@ -16,18 +13,14 @@ const envSchema = z.object({
         .string()
         .transform((val) => parseFloat(val))
         .pipe(z.number().min(-180).max(180)),
-
-    // DynamoDB table name
     DYNAMODB_TABLE_NAME: z.string().min(1, 'DYNAMODB_TABLE_NAME is required'),
+    REPLY_API_URL: z.string().url('REPLY_API_URL must be a valid URL'),
 });
 
-// Parse and validate environment variables
 export const env = envSchema.parse(process.env);
 
-// Export the type for use in other files
 export type Env = z.infer<typeof envSchema>;
 
-// Schema for event parameter overrides
 export const eventOverridesSchema = z
     .object({
         slackWebhookUrl: z.string().url().optional(),
@@ -35,38 +28,33 @@ export const eventOverridesSchema = z
         locationLat: z.number().min(-90).max(90).optional(),
         locationLon: z.number().min(-180).max(180).optional(),
         dynamodbTableName: z.string().min(1).optional(),
-        // Weather thresholds
+        replyApiUrl: z.string().url().optional(),
         minTemperature: z.number().min(-50).max(50).optional(),
         goodWeatherConditions: z.array(z.string()).optional(),
         badWeatherConditions: z.array(z.string()).optional(),
-        // Timing
-        weatherCheckHour: z.number().min(0).max(23).optional(), // Hour of day to check weather for (0-23)
+        weatherCheckHour: z.number().min(0).max(23).optional(),
     })
     .optional();
 
 export type EventOverrides = z.infer<typeof eventOverridesSchema>;
 
-// Helper to get configuration with event overrides
 export const getConfig = (eventOverrides?: EventOverrides) => {
     const overrides = eventOverridesSchema.parse(eventOverrides);
 
     return {
         slackWebhookUrl: overrides?.slackWebhookUrl ?? env.SLACK_WEBHOOK_URL,
-        awsRegion: env.AWS_DEFAULT_REGION, // Always use the region where lambda is deployed
+        awsRegion: env.AWS_DEFAULT_REGION,
         locationName: overrides?.locationName ?? env.LOCATION_NAME,
         locationLat: overrides?.locationLat ?? env.LOCATION_LAT,
         locationLon: overrides?.locationLon ?? env.LOCATION_LON,
         dynamodbTableName: overrides?.dynamodbTableName ?? env.DYNAMODB_TABLE_NAME,
-        // Weather thresholds
+        replyApiUrl: overrides?.replyApiUrl ?? env.REPLY_API_URL,
         minTemperature: overrides?.minTemperature ?? BOT_CONFIG.minTemperature,
         goodWeatherConditions: overrides?.goodWeatherConditions ?? BOT_CONFIG.goodWeatherConditions,
         badWeatherConditions: overrides?.badWeatherConditions ?? BOT_CONFIG.badWeatherConditions,
-        // Timing
-        weatherCheckHour: overrides?.weatherCheckHour ?? NOON_HOUR, // Default to noon
+        weatherCheckHour: overrides?.weatherCheckHour ?? NOON_HOUR,
     };
 };
-
-// Helper to get coordinates from config
 export const getCoordinates = (eventOverrides?: EventOverrides) => {
     const config = getConfig(eventOverrides);
     return {

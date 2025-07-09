@@ -1,11 +1,12 @@
 import { Handler } from 'aws-lambda';
 import { z } from 'zod';
-import { getCoordinates, getConfig, EventOverrides, eventOverridesSchema } from '../utils/env';
+import { getCoordinates, getConfig, eventOverridesSchema } from '../utils/env';
 import { FetchHttpClient } from '../implementations/fetch-http-client';
 import { OpenMeteoApi } from '../implementations/openmeteo-api';
 import { WeatherService, WeatherConfig } from '../services/weather.service';
 import { WebhookSlackServiceImpl } from '../implementations/webhook-slack';
 import { DynamoDBStorageService } from '../implementations/dynamodb-storage';
+import { generateConfirmationUrl } from '../utils/constants';
 
 const lambdaEventSchema = z
     .object({
@@ -30,7 +31,7 @@ export const handler: Handler = async (event: unknown, context) => {
             };
         }
 
-        const eventOverrides: EventOverrides = parseResult.data.overrides;
+        const eventOverrides = parseResult.data.overrides;
         console.log('Event overrides:', eventOverrides);
 
         const config = getConfig(eventOverrides);
@@ -54,6 +55,24 @@ export const handler: Handler = async (event: unknown, context) => {
         const weatherService = new WeatherService(weatherApi, weatherConfig);
         const slackService = new WebhookSlackServiceImpl(config.slackWebhookUrl, httpClient);
         const storageService = new DynamoDBStorageService(config.dynamodbTableName, config.awsRegion);
+
+        const lunchConfirmedThisWeek = await storageService.hasLunchBeenConfirmedThisWeek(coordinates.locationName);
+
+        if (lunchConfirmedThisWeek) {
+            console.log('Lunch already confirmed this week, skipping weather check');
+            return {
+                statusCode: 200,
+                body: JSON.stringify({
+                    message: 'Lunch already confirmed this week, no weather messages needed',
+                    location: coordinates.locationName,
+                    lunchConfirmed: true,
+                    config: {
+                        ...config,
+                        slackWebhookUrl: '[REDACTED]',
+                    },
+                }),
+            };
+        }
 
         const alreadySentToday = await storageService.hasMessageBeenSentToday(
             'weather_reminder',
@@ -104,10 +123,13 @@ export const handler: Handler = async (event: unknown, context) => {
         let messageType = '';
 
         if (weatherCondition.isGood) {
+            const confirmationUrl = generateConfirmationUrl(config.replyApiUrl, coordinates.locationName);
+
             await slackService.sendWeatherReminder(
                 weatherCondition.temperature,
                 weatherCondition.description,
                 coordinates.locationName,
+                confirmationUrl,
             );
 
             await storageService.recordMessageSent(
@@ -119,7 +141,7 @@ export const handler: Handler = async (event: unknown, context) => {
 
             messageSent = true;
             messageType = 'weather_reminder';
-            console.log('Sent weather reminder successfully');
+            console.log('Sent weather reminder successfully with confirmation link');
         } else {
             const canSendWarning = await storageService.canSendMessageThisWeek(
                 coordinates.locationName,
@@ -169,6 +191,7 @@ export const handler: Handler = async (event: unknown, context) => {
                     sent: messageSent,
                     type: messageType,
                 },
+                lunchConfirmed: false,
                 weeklyStats,
                 config: {
                     ...config,

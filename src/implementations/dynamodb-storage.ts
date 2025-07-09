@@ -197,4 +197,58 @@ export class DynamoDBStorageService implements StorageService {
             throw new Error(`Failed to cleanup old records: ${error}`);
         }
     }
+
+    async recordLunchConfirmation(location: string): Promise<void> {
+        const now = new Date();
+        const weekStart = this.getWeekStart(now);
+        const timestamp = now.getTime();
+        const id = `${location}#lunch_confirmation#${weekStart}`;
+
+        const record: MessageRecord = {
+            id,
+            date: weekStart,
+            timestamp,
+            messageType: 'lunch_confirmation',
+            location,
+        };
+
+        try {
+            const command = new PutItemCommand({
+                TableName: this.tableName,
+                Item: marshall(record),
+            });
+
+            await this.client.send(command);
+            console.log(`Recorded lunch confirmation for ${location} for week starting ${weekStart}`);
+        } catch (error) {
+            console.error('Error recording lunch confirmation:', error);
+            throw new Error(`Failed to record lunch confirmation: ${error}`);
+        }
+    }
+
+    async hasLunchBeenConfirmedThisWeek(location: string): Promise<boolean> {
+        const now = new Date();
+        const weekStart = this.getWeekStart(now);
+        const id = `${location}#lunch_confirmation#${weekStart}`;
+
+        try {
+            const command = new QueryCommand({
+                TableName: this.tableName,
+                KeyConditionExpression: 'id = :id',
+                ExpressionAttributeValues: marshall({
+                    ':id': id,
+                }),
+                Limit: 1,
+            });
+
+            const result = await this.client.send(command);
+            const hasConfirmation = (result.Items?.length ?? 0) > 0;
+
+            console.log(`Lunch confirmation check for ${location} week ${weekStart}: ${hasConfirmation}`);
+            return hasConfirmation;
+        } catch (error) {
+            console.error('Error checking lunch confirmation:', error);
+            throw new Error(`Failed to check lunch confirmation: ${error}`);
+        }
+    }
 }

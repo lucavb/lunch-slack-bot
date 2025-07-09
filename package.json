@@ -4,9 +4,10 @@
     "description": "Serverless Slack bot for outdoor lunch meetup reminders based on weather conditions",
     "main": "dist/index.js",
     "scripts": {
-        "build": "npm run clean && npm run build:weather-check",
+        "build": "npm run clean && npm run build:weather-check && npm run build:reply",
         "build:weather-check": "esbuild src/handlers/weather-check.ts --bundle --platform=node --target=node22 --outfile=dist/weather-check.js --external:aws-sdk --sourcemap",
-        "build:dev": "npm run build -- --watch",
+        "build:reply": "esbuild src/handlers/reply.ts --bundle --platform=node --target=node22 --outfile=dist/reply.js --external:aws-sdk --sourcemap",
+        "build:dev": "npm run clean && npm run build:weather-check -- --watch & npm run build:reply -- --watch",
         "deploy": "cd terraform && terraform apply",
         "plan": "cd terraform && terraform plan",
         "test": "vitest run",
@@ -19,7 +20,8 @@
         "format:check": "prettier --check \"src/**/*.{ts,js,json}\" \"*.{json,md}\"",
         "format:terraform": "terraform fmt terraform/",
         "lint": "eslint src/",
-        "lint:fix": "eslint src/ --fix"
+        "lint:fix": "eslint src/ --fix",
+        "type-check": "tsc --noEmit"
     },
     "keywords": [
         "slack",

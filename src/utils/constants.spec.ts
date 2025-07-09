@@ -55,6 +55,24 @@ describe('Constants', () => {
             expect(message).toContain('🌤️');
             expect(message).toContain('lunch outside');
         });
+
+        it('should include confirmation link when provided', () => {
+            const confirmationUrl = 'https://api.example.com/reply?action=confirm-lunch&location=Munich';
+            const message = LUNCH_MESSAGE_TEMPLATE('Munich', 18, 'sunny', confirmationUrl);
+
+            expect(message).toContain('Munich');
+            expect(message).toContain('18°C');
+            expect(message).toContain('sunny');
+            expect(message).toContain('Click here to confirm');
+            expect(message).toContain(confirmationUrl);
+        });
+
+        it('should not include confirmation link when not provided', () => {
+            const message = LUNCH_MESSAGE_TEMPLATE('Munich', 18, 'sunny');
+
+            expect(message).not.toContain('Click here to confirm');
+            expect(message).not.toContain('Already meeting for lunch');
+        });
     });
 
     describe('Time constants', () => {

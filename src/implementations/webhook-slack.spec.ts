@@ -81,6 +81,19 @@ describe('WebhookSlackServiceImpl', () => {
             expect(payload.text).toContain('partly cloudy');
             expect(payload.text).toContain('Berlin');
         });
+
+        it('should include confirmation link when provided', async () => {
+            mockHttpClient.post = vi.fn().mockResolvedValueOnce({});
+            const confirmationUrl = 'https://api.example.com/reply?action=confirm-lunch&location=Munich';
+
+            await slackService.sendWeatherReminder(18, 'sunny', 'Munich', confirmationUrl);
+
+            const call = (mockHttpClient.post as ReturnType<typeof vi.fn>).mock.calls[0];
+            const payload = call[1];
+
+            expect(payload.text).toContain('Click here to confirm');
+            expect(payload.text).toContain(confirmationUrl);
+        });
     });
 
     describe('sendWeatherWarning', () => {

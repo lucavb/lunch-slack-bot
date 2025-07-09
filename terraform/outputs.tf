@@ -38,6 +38,16 @@ output "dynamodb_table_name" {
   value       = aws_dynamodb_table.message_tracking.name
 }
 
+output "reply_api_url" {
+  description = "URL for the reply API endpoint"
+  value       = "https://${aws_api_gateway_rest_api.lunch_bot.id}.execute-api.${var.aws_region}.amazonaws.com/${var.api_gateway_stage_name}/reply"
+}
+
+output "reply_function_name" {
+  description = "Name of the reply Lambda function"
+  value       = aws_lambda_function.reply.function_name
+}
+
 output "setup_instructions" {
   description = "Setup instructions for the weather bot"
   value       = <<-EOT
@@ -46,6 +56,14 @@ output "setup_instructions" {
     1. The lambda function runs automatically on weekdays at 10 AM CEST
     2. It checks weather conditions and sends messages to your Slack webhook
     3. Rate limiting: Max 2 messages per week (tracked in DynamoDB)
+    4. NEW: Reply API endpoint available for team interactions!
+    
+    Reply API Features:
+    - API URL: https://${aws_api_gateway_rest_api.lunch_bot.id}.execute-api.${var.aws_region}.amazonaws.com/${var.api_gateway_stage_name}/reply
+    - Method: POST
+    - Body: {"action": "confirm-lunch", "location": "optional_location_name"} (JSON)
+    - When team confirms lunch, no more weather messages will be sent that week
+    - Example: curl -X POST https://${aws_api_gateway_rest_api.lunch_bot.id}.execute-api.${var.aws_region}.amazonaws.com/${var.api_gateway_stage_name}/reply -H "Content-Type: application/json" -d '{"action": "confirm-lunch"}'
     
     Manual Testing:
     - Go to AWS Console → Lambda → ${aws_lambda_function.weather_check.function_name}
@@ -62,6 +80,7 @@ output "setup_instructions" {
     
     Monitoring:
     - CloudWatch Logs: ${aws_cloudwatch_log_group.weather_check.name}
+    - Reply Handler Logs: ${aws_cloudwatch_log_group.reply.name}
     - DynamoDB Table: ${aws_dynamodb_table.message_tracking.name}
     
     Schedule: ${aws_cloudwatch_event_rule.weather_check_schedule.schedule_expression}
