@@ -114,7 +114,7 @@ resource "aws_api_gateway_integration" "reply_options" {
   http_method = aws_api_gateway_method.reply_options.http_method
 
   type = "MOCK"
-  
+
   request_templates = {
     "application/json" = jsonencode({
       statusCode = 200
@@ -171,7 +171,10 @@ resource "aws_api_gateway_integration_response" "reply_post" {
     "method.response.header.Access-Control-Allow-Origin" = "'*'"
   }
 
-  depends_on = [aws_api_gateway_method_response.reply_post]
+  depends_on = [
+    aws_api_gateway_integration.reply_post,
+    aws_api_gateway_method_response.reply_post
+  ]
 }
 
 # API Gateway Integration Response for GET
@@ -185,7 +188,10 @@ resource "aws_api_gateway_integration_response" "reply_get" {
     "method.response.header.Access-Control-Allow-Origin" = "'*'"
   }
 
-  depends_on = [aws_api_gateway_method_response.reply_get]
+  depends_on = [
+    aws_api_gateway_integration.reply_get,
+    aws_api_gateway_method_response.reply_get
+  ]
 }
 
 # API Gateway Integration Response for OPTIONS (CORS)
@@ -201,7 +207,10 @@ resource "aws_api_gateway_integration_response" "reply_options" {
     "method.response.header.Access-Control-Allow-Methods" = "'GET,POST,OPTIONS'"
   }
 
-  depends_on = [aws_api_gateway_method_response.reply_options]
+  depends_on = [
+    aws_api_gateway_integration.reply_options,
+    aws_api_gateway_method_response.reply_options
+  ]
 }
 
 # Lambda Permission for API Gateway
@@ -219,10 +228,12 @@ resource "aws_api_gateway_deployment" "lunch_bot" {
     aws_api_gateway_integration.reply_get,
     aws_api_gateway_integration.reply_post,
     aws_api_gateway_integration.reply_options,
+    aws_api_gateway_integration_response.reply_get,
+    aws_api_gateway_integration_response.reply_post,
+    aws_api_gateway_integration_response.reply_options,
   ]
 
   rest_api_id = aws_api_gateway_rest_api.lunch_bot.id
-  stage_name  = var.api_gateway_stage_name
 
   lifecycle {
     create_before_destroy = true
@@ -240,4 +251,13 @@ resource "aws_api_gateway_deployment" "lunch_bot" {
       aws_api_gateway_integration.reply_options.id,
     ]))
   }
+}
+
+# API Gateway Stage
+resource "aws_api_gateway_stage" "lunch_bot" {
+  deployment_id = aws_api_gateway_deployment.lunch_bot.id
+  rest_api_id   = aws_api_gateway_rest_api.lunch_bot.id
+  stage_name    = var.api_gateway_stage_name
+
+  tags = var.tags
 } 
