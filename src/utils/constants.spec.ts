@@ -4,7 +4,7 @@ import {
     OPEN_METEO_API_BASE_URL,
     LUNCH_MESSAGE_TEMPLATE,
     DYNAMO_TTL_DAYS,
-    NOOD_HOUR,
+    NOON_HOUR,
     SCHEDULER_HOUR,
     ERROR_MESSAGES,
     MAX_MESSAGES_PER_WEEK,
@@ -59,7 +59,7 @@ describe('Constants', () => {
 
     describe('Time constants', () => {
         it('should have correct noon hour', () => {
-            expect(NOOD_HOUR).toBe(12);
+            expect(NOON_HOUR).toBe(12);
         });
 
         it('should have correct scheduler hour', () => {

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { NOON_HOUR, BOT_CONFIG } from './constants';
 
 // Define the schema for environment variables
 const envSchema = z.object({
@@ -57,11 +58,11 @@ export const getConfig = (eventOverrides?: EventOverrides) => {
         locationLon: overrides?.locationLon ?? env.LOCATION_LON,
         dynamodbTableName: overrides?.dynamodbTableName ?? env.DYNAMODB_TABLE_NAME,
         // Weather thresholds
-        minTemperature: overrides?.minTemperature ?? 12,
-        goodWeatherConditions: overrides?.goodWeatherConditions ?? ['clear', 'clouds'],
-        badWeatherConditions: overrides?.badWeatherConditions ?? ['rain', 'drizzle', 'thunderstorm', 'snow'],
+        minTemperature: overrides?.minTemperature ?? BOT_CONFIG.minTemperature,
+        goodWeatherConditions: overrides?.goodWeatherConditions ?? BOT_CONFIG.goodWeatherConditions,
+        badWeatherConditions: overrides?.badWeatherConditions ?? BOT_CONFIG.badWeatherConditions,
         // Timing
-        weatherCheckHour: overrides?.weatherCheckHour ?? 12, // Default to noon
+        weatherCheckHour: overrides?.weatherCheckHour ?? NOON_HOUR, // Default to noon
     };
 };
 

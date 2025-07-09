@@ -25,7 +25,7 @@ export const LUNCH_MESSAGE_TEMPLATE = (location: string, temperature: number, de
 Anyone up for a lunch meetup in the park? React with ✅ if you're interested!
 `;
 
-export const NOOD_HOUR = 12; // 12 PM / noon
+export const NOON_HOUR = 12; // 12 PM / noon
 export const SCHEDULER_HOUR = 10; // 10 AM for weather check
 export const DYNAMO_TTL_DAYS = 30;
 export const MAX_MESSAGES_PER_WEEK = 2;
