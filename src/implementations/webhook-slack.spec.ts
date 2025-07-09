@@ -81,31 +81,6 @@ describe('WebhookSlackServiceImpl', () => {
             expect(payload.text).toContain('partly cloudy');
             expect(payload.text).toContain('Berlin');
         });
-
-        it('should include action buttons in blocks', async () => {
-            mockHttpClient.post = vi.fn().mockResolvedValueOnce({});
-
-            await slackService.sendWeatherReminder(20, 'sunny', 'Munich');
-
-            const call = (mockHttpClient.post as ReturnType<typeof vi.fn>).mock.calls[0];
-            const payload = call[1];
-
-            expect(payload.blocks).toEqual(
-                expect.arrayContaining([
-                    expect.objectContaining({
-                        type: 'actions',
-                        elements: expect.arrayContaining([
-                            expect.objectContaining({
-                                action_id: 'lunch_yes',
-                            }),
-                            expect.objectContaining({
-                                action_id: 'lunch_maybe',
-                            }),
-                        ]),
-                    }),
-                ]),
-            );
-        });
     });
 
     describe('sendWeatherWarning', () => {

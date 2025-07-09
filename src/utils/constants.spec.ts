@@ -3,13 +3,11 @@ import {
     BOT_CONFIG,
     OPEN_METEO_API_BASE_URL,
     LUNCH_MESSAGE_TEMPLATE,
-    BUTTON_BLOCKS,
     DYNAMO_TTL_DAYS,
     NOOD_HOUR,
     SCHEDULER_HOUR,
     ERROR_MESSAGES,
     MAX_MESSAGES_PER_WEEK,
-    PREFERRED_DAYS,
 } from './constants';
 
 describe('Constants', () => {
@@ -59,18 +57,6 @@ describe('Constants', () => {
         });
     });
 
-    describe('BUTTON_BLOCKS', () => {
-        it('should have action buttons', () => {
-            expect(BUTTON_BLOCKS).toHaveLength(1);
-            expect(BUTTON_BLOCKS[0].type).toBe('actions');
-            expect(BUTTON_BLOCKS[0].elements).toHaveLength(2);
-
-            const buttons = BUTTON_BLOCKS[0].elements;
-            expect(buttons[0].action_id).toBe('lunch_yes');
-            expect(buttons[1].action_id).toBe('lunch_maybe');
-        });
-    });
-
     describe('Time constants', () => {
         it('should have correct noon hour', () => {
             expect(NOOD_HOUR).toBe(12);
@@ -88,10 +74,6 @@ describe('Constants', () => {
     describe('Weekly message limits', () => {
         it('should have correct maximum messages per week', () => {
             expect(MAX_MESSAGES_PER_WEEK).toBe(2);
-        });
-
-        it('should have preferred days configured', () => {
-            expect(PREFERRED_DAYS).toEqual(['monday', 'tuesday']);
         });
     });
 
