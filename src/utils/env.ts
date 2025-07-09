@@ -28,7 +28,7 @@ export const env = envSchema.parse(process.env);
 export type Env = z.infer<typeof envSchema>;
 
 // Schema for event parameter overrides
-const eventOverridesSchema = z
+export const eventOverridesSchema = z
     .object({
         slackWebhookUrl: z.string().url().optional(),
         locationName: z.string().min(1).optional(),

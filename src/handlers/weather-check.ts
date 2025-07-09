@@ -1,20 +1,41 @@
 import { Handler } from 'aws-lambda';
-import { getCoordinates, getConfig, EventOverrides } from '../utils/env';
+import { z } from 'zod';
+import { getCoordinates, getConfig, EventOverrides, eventOverridesSchema } from '../utils/env';
 import { FetchHttpClient } from '../implementations/fetch-http-client';
 import { OpenMeteoApi } from '../implementations/openmeteo-api';
 import { WeatherService, WeatherConfig } from '../services/weather.service';
 import { WebhookSlackServiceImpl } from '../implementations/webhook-slack';
 import { DynamoDBStorageService } from '../implementations/dynamodb-storage';
 
-export const handler: Handler = async (event, context) => {
+// Schema to validate Lambda event structure with overrides
+const lambdaEventSchema = z
+    .object({
+        overrides: eventOverridesSchema,
+    })
+    .passthrough(); // Allow additional properties from Lambda event
+
+export const handler: Handler = async (event: unknown, context) => {
     console.log('Weather check handler started', { event, context });
 
     try {
-        // Extract parameter overrides from event
-        const eventOverrides: EventOverrides = event?.overrides || {};
+        // Validate event structure and overrides in one go
+        const parseResult = lambdaEventSchema.safeParse(event);
+
+        if (!parseResult.success) {
+            console.error('Invalid event structure:', parseResult.error.issues);
+            return {
+                statusCode: 400,
+                body: JSON.stringify({
+                    error: 'Invalid event structure',
+                    details: parseResult.error.issues,
+                }),
+            };
+        }
+
+        const eventOverrides: EventOverrides = parseResult.data.overrides;
         console.log('Event overrides:', eventOverrides);
 
-        // Get configuration with event overrides
+        // Get configuration with validated event overrides
         const config = getConfig(eventOverrides);
         const coordinates = getCoordinates(eventOverrides);
         console.log('Using configuration:', {
