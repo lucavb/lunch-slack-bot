@@ -24,17 +24,19 @@ export const LUNCH_MESSAGE_TEMPLATE = (
 
 📍 ${location}
 🌡️ ${temperature}°C at noon  
-☀️ ${description}
-
-Anyone up for a lunch meetup in the park? React with ✅ if you're interested!`;
+☀️ ${description}`;
 
     if (confirmationUrl) {
         return `${baseMessage}
 
+Anyone up for a lunch meetup in the park? React with ✅ to communicate with colleagues, and <${confirmationUrl}|click here after your lunch meeting> to confirm it for this week!
+
 💬 *Already meeting for lunch?* <${confirmationUrl}|Click here to confirm> and we'll stop sending weather updates this week!`;
     }
 
-    return baseMessage;
+    return `${baseMessage}
+
+Anyone up for a lunch meetup in the park? React with ✅ if you're interested!`;
 };
 
 export const generateConfirmationUrl = (baseUrl: string, location: string): string => {
