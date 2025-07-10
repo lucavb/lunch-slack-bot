@@ -2,10 +2,9 @@
 
 # Lunch Weather Bot Complete Setup Script
 # This script automates the setup of:
-# 1. Terraform remote state backend
-# 2. Configuration file (terraform.tfvars)
-# 3. Deployment process
-# 4. Instructions for setting up the Slack webhook secret
+# 1. Configuration file (terraform.tfvars)
+# 2. Deployment process
+# 3. Instructions for setting up the Slack webhook secret
 
 set -e
 
@@ -134,59 +133,12 @@ else
     echo "✅ terraform.tfvars already exists"
 fi
 
-# Step 2: Deploy state backend infrastructure
-echo "📦 Step 2: Deploying state backend infrastructure..."
+# Step 2: Initialize Terraform
+echo "🔧 Step 2: Initializing Terraform..."
 terraform init
-terraform plan -out=backend.tfplan
-terraform apply backend.tfplan
-rm backend.tfplan
 
-# Step 3: Capture output values
-echo "📝 Step 3: Capturing backend configuration..."
-BUCKET_NAME=$(terraform output -raw terraform_state_bucket)
-LOCKS_TABLE=$(terraform output -raw terraform_locks_table)
-AWS_REGION=$(terraform output -raw aws_region 2>/dev/null || echo "eu-central-1")
-
-echo "✅ State backend infrastructure created:"
-echo "   S3 Bucket: $BUCKET_NAME"
-echo "   DynamoDB Table: $LOCKS_TABLE"
-echo "   Region: $AWS_REGION"
-
-# Step 4: Generate backend configuration
-echo "🔧 Step 4: Generating backend configuration..."
-cat > backend-config.tmp <<EOF
-  backend "s3" {
-    bucket         = "$BUCKET_NAME"
-    key            = "terraform.tfstate"
-    region         = "$AWS_REGION"
-    dynamodb_table = "$LOCKS_TABLE"
-    encrypt        = true
-  }
-EOF
-
-# Step 5: Update main.tf with backend configuration
-echo "📝 Step 5: Updating main.tf with backend configuration..."
-if grep -q "backend \"s3\"" main.tf; then
-    echo "⚠️  Backend configuration already exists in main.tf"
-else
-    # Insert backend configuration after required_version
-    sed -i.bak '/required_version = ">= 1.0"/a\
-\
-  backend "s3" {\
-    bucket         = "'$BUCKET_NAME'"\
-    key            = "terraform.tfstate"\
-    region         = "'$AWS_REGION'"\
-    dynamodb_table = "'$LOCKS_TABLE'"\
-    encrypt        = true\
-  }' main.tf
-fi
-
-# Step 6: Reinitialize with remote backend
-echo "🔄 Step 6: Reinitializing Terraform with remote backend..."
-terraform init -migrate-state
-
-# Step 7: Build the application
-echo "🏗️  Step 7: Building the application..."
+# Step 3: Build the application
+echo "🏗️  Step 3: Building the application..."
 cd ..
 if [ -f "package.json" ]; then
     npm run build
@@ -197,8 +149,8 @@ else
 fi
 cd terraform
 
-# Step 8: Deploy the weather bot
-echo "🚀 Step 8: Deploying the weather bot..."
+# Step 4: Deploy the weather bot
+echo "🚀 Step 4: Deploying the weather bot..."
 terraform plan
 echo ""
 if prompt_yes_no "Do you want to deploy the weather bot now?" "y"; then
@@ -209,8 +161,8 @@ else
     echo "⏸️  Deployment skipped. Run 'terraform apply' when ready."
 fi
 
-# Step 9: Set up Slack webhook secret
-echo "🔐 Step 9: Setting up Slack webhook secret..."
+# Step 5: Set up Slack webhook secret
+echo "🔐 Step 5: Setting up Slack webhook secret..."
 echo ""
 echo "IMPORTANT: You need to manually set up the Slack webhook URL in AWS Secrets Manager:"
 echo ""
@@ -224,8 +176,9 @@ echo ""
 echo "2. Store the webhook URL in AWS Secrets Manager:"
 echo "   - Go to AWS Console → Secrets Manager"
 
-# Get deployment suffix for secret name
+# Get deployment suffix and AWS region for secret name
 DEPLOYMENT_SUFFIX_VAR=$(grep "deployment_suffix" terraform.tfvars | cut -d'"' -f2)
+AWS_REGION=$(grep "aws_region" terraform.tfvars | cut -d'"' -f2)
 if [ -n "$DEPLOYMENT_SUFFIX_VAR" ]; then
     SECRET_NAME="lunch-bot-${DEPLOYMENT_SUFFIX_VAR}/slack-webhook"
 else
@@ -259,27 +212,21 @@ else
     echo "💡 Set up the secret manually when you have your webhook URL ready."
 fi
 
-# Step 10: Verify setup
-echo "✅ Step 10: Verifying setup..."
+# Step 6: Verify setup
+echo "✅ Step 6: Verifying setup..."
 terraform plan | head -20
 
 # Cleanup
-rm -f backend-config.tmp
+# (No temporary files to clean up)
 
 echo ""
 echo "🎉 Success! Lunch Weather Bot is fully configured and deployed!"
 echo ""
 echo "📋 What was set up:"
-echo "✅ Remote state backend (S3 + DynamoDB)"
 echo "✅ Configuration file (terraform.tfvars)"
 echo "✅ Application built and deployed"
 echo "✅ Lambda function ready to run"
 echo "✅ Secrets Manager secret created (needs webhook URL)"
-echo ""
-echo "🗂️  Backend Details:"
-echo "   S3 Bucket: $BUCKET_NAME"
-echo "   DynamoDB Table: $LOCKS_TABLE"
-echo "   Region: $AWS_REGION"
 echo ""
 echo "🤖 Bot Details:"
 FUNCTION_NAME=$(terraform output -raw weather_check_function_name 2>/dev/null || echo "lunch-weather-bot-weather-check")
@@ -298,10 +245,9 @@ echo "   5. Check CloudWatch logs: $LOG_GROUP"
 echo ""
 echo "👥 Team Setup:"
 echo "   1. Commit the changes to main.tf (but NOT terraform.tfvars)"
-echo "   2. Share the backend configuration with your team"
-echo "   3. Team members run: terraform init"
-echo "   4. Each team member creates their own terraform.tfvars"
-echo "   5. One team member sets up the Slack webhook secret"
+echo "   2. Team members run: terraform init"
+echo "   3. Each team member creates their own terraform.tfvars"
+echo "   4. One team member sets up the Slack webhook secret"
 echo ""
 echo "🔧 For multiple deployments:"
 echo "   Use terraform workspaces and different deployment_suffix values" 
