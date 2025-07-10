@@ -2,7 +2,7 @@
 resource "aws_secretsmanager_secret" "slack_webhook" {
   name        = "lunch-bot${local.name_suffix}/slack-webhook"
   description = "Slack webhook URL for lunch weather bot"
-
+  recovery_window_in_days = 0
   tags = var.tags
 }
 
