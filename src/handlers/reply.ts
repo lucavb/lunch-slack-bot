@@ -6,15 +6,15 @@ import { DynamoDBStorageService } from '../implementations/dynamodb-storage';
 
 const overridesSchema = z
     .object({
-        slackWebhookUrl: z.string().url().optional(),
-        locationName: z.string().min(1).optional(),
+        badWeatherConditions: z.array(z.string()).optional(),
+        dynamodbTableName: z.string().min(1).optional(),
+        goodWeatherConditions: z.array(z.string()).optional(),
         locationLat: z.number().min(-90).max(90).optional(),
         locationLon: z.number().min(-180).max(180).optional(),
-        dynamodbTableName: z.string().min(1).optional(),
-        replyApiUrl: z.string().url().optional(),
+        locationName: z.string().min(1).optional(),
         minTemperature: z.number().min(-50).max(50).optional(),
-        goodWeatherConditions: z.array(z.string()).optional(),
-        badWeatherConditions: z.array(z.string()).optional(),
+        replyApiUrl: z.string().url().optional(),
+        slackWebhookUrl: z.string().url().optional(),
         weatherCheckHour: z.number().min(0).max(23).optional(),
     })
     .optional();
