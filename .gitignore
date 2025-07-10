@@ -73,10 +73,6 @@ coverage/
 # Documentation
 docs/build/
 
-# Package manager
-package-lock.json
-yarn.lock
-
 # Local development
 .local/
-local/ 
+local/
