@@ -63,6 +63,7 @@ chmod +x setup-bot.sh
 The script will guide you through:
 
 - ✅ Creating `terraform.tfvars` with your webhook URL
+- ✅ Setting up remote state backend (S3 + DynamoDB)
 - ✅ Building and deploying the application
 - ✅ Providing testing instructions
 
@@ -378,7 +379,7 @@ The `setup-bot.sh` script handles all security aspects automatically:
 
 - Creates `terraform.tfvars` with proper validation
 - Excludes secrets from git (already configured in `.gitignore`)
-- Sets up local state for deployment
+- Sets up remote state backend for team collaboration
 
 ### Local Development (Manual)
 
@@ -469,7 +470,7 @@ terraform/             # Infrastructure as Code
 ├── variables.tf      # Input variables
 ├── outputs.tf        # Output values
 ├── setup-bot.sh      # Complete setup script
-
+└── setup-state-backend.md  # Manual backend setup docs
 ```
 
 ## 🌍 Environment Variables
