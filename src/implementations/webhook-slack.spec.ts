@@ -91,7 +91,7 @@ describe('WebhookSlackServiceImpl', () => {
             const call = (mockHttpClient.post as ReturnType<typeof vi.fn>).mock.calls[0];
             const payload = call[1];
 
-            expect(payload.text).toContain('Click here to confirm');
+            expect(payload.text).toContain('click here after your lunch meeting');
             expect(payload.text).toContain(confirmationUrl);
         });
     });

@@ -63,15 +63,15 @@ describe('Constants', () => {
             expect(message).toContain('Munich');
             expect(message).toContain('18°C');
             expect(message).toContain('sunny');
-            expect(message).toContain('Click here to confirm');
+            expect(message).toContain('click here after your lunch meeting');
             expect(message).toContain(confirmationUrl);
         });
 
         it('should not include confirmation link when not provided', () => {
             const message = LUNCH_MESSAGE_TEMPLATE('Munich', 18, 'sunny');
 
-            expect(message).not.toContain('Click here to confirm');
-            expect(message).not.toContain('Already meeting for lunch');
+            expect(message).not.toContain('click here after your lunch meeting');
+            expect(message).toContain('React with ✅ if you\'re interested');
         });
     });
 

@@ -19,12 +19,10 @@ export class DynamoDBStorageService implements StorageService {
 
         try {
             const command = new QueryCommand({
-                TableName: this.tableName,
+                ExpressionAttributeValues: marshall({ ':id': id }),
                 KeyConditionExpression: 'id = :id',
-                ExpressionAttributeValues: marshall({
-                    ':id': id,
-                }),
                 Limit: 1,
+                TableName: this.tableName,
             });
 
             const result = await this.client.send(command);

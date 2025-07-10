@@ -9,7 +9,7 @@ import { DynamoDBStorageService } from '../implementations/dynamodb-storage';
 import { generateConfirmationUrl } from '../utils/constants';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 
-const lambdaEventSchema = z.looseObject({ overrides: eventOverridesSchema });
+const lambdaEventSchema = z.looseObject({ overrides: eventOverridesSchema.optional() });
 
 export const handler = (async (event: unknown) => {
     console.log('Weather check handler started', { event });

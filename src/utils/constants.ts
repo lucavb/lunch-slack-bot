@@ -29,9 +29,7 @@ export const LUNCH_MESSAGE_TEMPLATE = (
     if (confirmationUrl) {
         return `${baseMessage}
 
-Anyone up for a lunch meetup in the park? React with ✅ to communicate with colleagues, and <${confirmationUrl}|click here after your lunch meeting> to confirm it for this week!
-
-💬 *Already meeting for lunch?* <${confirmationUrl}|Click here to confirm> and we'll stop sending weather updates this week!`;
+Anyone up for a lunch meetup in the park? React with ✅ to communicate with colleagues, and <${confirmationUrl}|click here after your lunch meeting> to confirm it for this week!`;
     }
 
     return `${baseMessage}
