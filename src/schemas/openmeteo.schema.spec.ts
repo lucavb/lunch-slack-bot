@@ -1,16 +1,16 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
+    getWeatherCondition,
+    getWeatherDescription,
+    isValidWeatherCode,
     openMeteoForecastSchema,
     openMeteoHourlyDataSchema,
-    openMeteoHourlyUnitsSchema,
     openMeteoHourlyPointSchema,
-    WMO_WEATHER_CODES,
+    openMeteoHourlyUnitsSchema,
+    parseHourlyData,
     validateOpenMeteoForecast,
     validateOpenMeteoHourlyPoint,
-    getWeatherDescription,
-    getWeatherCondition,
-    isValidWeatherCode,
-    parseHourlyData,
+    WMO_WEATHER_CODES,
 } from './openmeteo.schema';
 
 describe('Open-Meteo Schema', () => {

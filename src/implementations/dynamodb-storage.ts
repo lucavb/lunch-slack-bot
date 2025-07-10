@@ -1,15 +1,15 @@
-import { DynamoDBClient, PutItemCommand, QueryCommand, ScanCommand, DeleteItemCommand } from '@aws-sdk/client-dynamodb';
+import { DeleteItemCommand, DynamoDBClient, PutItemCommand, QueryCommand, ScanCommand } from '@aws-sdk/client-dynamodb';
 import { marshall, unmarshall } from '@aws-sdk/util-dynamodb';
-import { StorageService, MessageRecord, WeeklyMessageStats } from '../interfaces/storage.interface';
-import { MAX_MESSAGES_PER_WEEK } from '../utils/constants';
-import { format, startOfWeek, endOfWeek, subDays } from 'date-fns';
+import { MessageRecord, StorageService, WeeklyMessageStats } from '../interfaces/storage.interface';
+import { MAX_MESSAGES_PER_WEEK, DYNAMO_TTL_DAYS } from '../utils/constants';
+import { endOfWeek, format, startOfWeek, subDays } from 'date-fns';
 
 export class DynamoDBStorageService implements StorageService {
-    private client: DynamoDBClient;
-    private tableName: string;
+    private readonly client: Pick<DynamoDBClient, 'send'>;
+    private readonly tableName: string;
 
-    constructor(tableName: string, region: string = 'eu-central-1') {
-        this.client = new DynamoDBClient({ region });
+    constructor({ client, tableName }: { client: Pick<DynamoDBClient, 'send'>; tableName: string }) {
+        this.client = client;
         this.tableName = tableName;
     }
 
@@ -97,6 +97,7 @@ export class DynamoDBStorageService implements StorageService {
         const today = format(new Date(), 'yyyy-MM-dd');
         const timestamp = Date.now();
         const id = `${location}#${messageType}#${today}`;
+        const ttl = Math.floor(Date.now() / 1000) + DYNAMO_TTL_DAYS * 24 * 60 * 60;
 
         const record: MessageRecord = {
             id,
@@ -104,6 +105,7 @@ export class DynamoDBStorageService implements StorageService {
             timestamp,
             messageType: messageType as 'weather_reminder' | 'weather_warning',
             location,
+            ttl,
             ...(temperature !== undefined && { temperature }),
             ...(weatherCondition !== undefined && { weatherCondition }),
         };
@@ -203,14 +205,16 @@ export class DynamoDBStorageService implements StorageService {
         const weekStart = this.getWeekStart(now);
         const timestamp = now.getTime();
         const id = `${location}#lunch_confirmation#${weekStart}`;
+        const ttl = Math.floor(Date.now() / 1000) + DYNAMO_TTL_DAYS * 24 * 60 * 60;
 
-        const record: MessageRecord = {
+        const record = {
             id,
             date: weekStart,
             timestamp,
             messageType: 'lunch_confirmation',
             location,
-        };
+            ttl,
+        } as const satisfies MessageRecord;
 
         try {
             const command = new PutItemCommand({

@@ -2,8 +2,13 @@
 # Copy this file to terraform.tfvars and fill in your actual values
 # terraform.tfvars is excluded from git to protect secrets
 
-# Required: Slack webhook URL (keep this secret!)
-slack_webhook_url = "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
+# IMPORTANT: Slack webhook URL is now stored in AWS Secrets Manager
+# After deployment, you need to manually set the webhook URL in the secret:
+# 1. Go to AWS Console → Secrets Manager
+# 2. Find the secret named "lunch-bot/slack-webhook" (or with your deployment suffix)
+# 3. Click "Retrieve secret value" → "Edit"
+# 4. Set the secret value as JSON: {"webhook_url": "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"}
+# 5. Save the secret
 
 # Location settings
 location_name = "Munich"

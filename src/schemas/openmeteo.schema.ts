@@ -2,20 +2,20 @@ import { z } from 'zod';
 
 // Open-Meteo hourly units schema
 export const openMeteoHourlyUnitsSchema = z.object({
-    time: z.string(),
-    temperature_2m: z.string(),
-    windspeed_10m: z.string(),
-    weathercode: z.string(),
     cloud_cover: z.string(),
+    temperature_2m: z.string(),
+    time: z.string(),
+    weathercode: z.string(),
+    windspeed_10m: z.string(),
 });
 
 // Open-Meteo hourly data schema
 export const openMeteoHourlyDataSchema = z.object({
-    time: z.array(z.string()),
-    temperature_2m: z.array(z.number()),
-    windspeed_10m: z.array(z.number()),
-    weathercode: z.array(z.number()),
     cloud_cover: z.array(z.number()),
+    temperature_2m: z.array(z.number()),
+    time: z.array(z.string()),
+    weathercode: z.array(z.number()),
+    windspeed_10m: z.array(z.number()),
 });
 
 // Open-Meteo forecast response schema

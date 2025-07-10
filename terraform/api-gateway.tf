@@ -18,18 +18,19 @@ resource "aws_lambda_function" "reply" {
 
   environment {
     variables = {
-      SLACK_WEBHOOK_URL   = var.slack_webhook_url
-      LOCATION_NAME       = var.location_name
-      LOCATION_LAT        = tostring(var.location_lat)
-      LOCATION_LON        = tostring(var.location_lon)
-      DYNAMODB_TABLE_NAME = aws_dynamodb_table.message_tracking.name
-      REPLY_API_URL       = "https://${aws_api_gateway_rest_api.lunch_bot.id}.execute-api.${var.aws_region}.amazonaws.com/${var.api_gateway_stage_name}/reply"
+      SLACK_WEBHOOK_SECRET_ARN = aws_secretsmanager_secret.slack_webhook.arn
+      LOCATION_NAME            = var.location_name
+      LOCATION_LAT             = tostring(var.location_lat)
+      LOCATION_LON             = tostring(var.location_lon)
+      DYNAMODB_TABLE_NAME      = aws_dynamodb_table.message_tracking.name
+      REPLY_API_URL            = "https://${aws_api_gateway_rest_api.lunch_bot.id}.execute-api.${var.aws_region}.amazonaws.com/${var.api_gateway_stage_name}/reply"
     }
   }
 
   depends_on = [
     aws_iam_role_policy.lambda_policy,
     aws_cloudwatch_log_group.reply,
+    aws_secretsmanager_secret.slack_webhook,
   ]
 
   tags = var.tags

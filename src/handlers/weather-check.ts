@@ -1,21 +1,18 @@
 import { Handler } from 'aws-lambda';
 import { z } from 'zod';
-import { getCoordinates, getConfig, eventOverridesSchema } from '../utils/env';
+import { eventOverridesSchema, getConfig, getCoordinates } from '../utils/env';
 import { FetchHttpClient } from '../implementations/fetch-http-client';
 import { OpenMeteoApi } from '../implementations/openmeteo-api';
-import { WeatherService, WeatherConfig } from '../services/weather.service';
+import { WeatherConfig, WeatherService } from '../services/weather.service';
 import { WebhookSlackServiceImpl } from '../implementations/webhook-slack';
 import { DynamoDBStorageService } from '../implementations/dynamodb-storage';
 import { generateConfirmationUrl } from '../utils/constants';
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 
-const lambdaEventSchema = z
-    .object({
-        overrides: eventOverridesSchema,
-    })
-    .passthrough();
+const lambdaEventSchema = z.looseObject({ overrides: eventOverridesSchema });
 
-export const handler: Handler = async (event: unknown, context) => {
-    console.log('Weather check handler started', { event, context });
+export const handler = (async (event: unknown) => {
+    console.log('Weather check handler started', { event });
 
     try {
         const parseResult = lambdaEventSchema.safeParse(event);
@@ -34,8 +31,8 @@ export const handler: Handler = async (event: unknown, context) => {
         const eventOverrides = parseResult.data.overrides;
         console.log('Event overrides:', eventOverrides);
 
-        const config = getConfig(eventOverrides);
-        const coordinates = getCoordinates(eventOverrides);
+        const config = await getConfig(eventOverrides);
+        const coordinates = await getCoordinates(eventOverrides);
         console.log('Using configuration:', {
             ...config,
             slackWebhookUrl: '[REDACTED]',
@@ -54,7 +51,10 @@ export const handler: Handler = async (event: unknown, context) => {
 
         const weatherService = new WeatherService(weatherApi, weatherConfig);
         const slackService = new WebhookSlackServiceImpl(config.slackWebhookUrl, httpClient);
-        const storageService = new DynamoDBStorageService(config.dynamodbTableName, config.awsRegion);
+        const storageService = new DynamoDBStorageService({
+            client: new DynamoDBClient({ region: config.awsRegion }),
+            tableName: config.dynamodbTableName,
+        });
 
         const lunchConfirmedThisWeek = await storageService.hasLunchBeenConfirmedThisWeek(coordinates.locationName);
 
@@ -210,4 +210,4 @@ export const handler: Handler = async (event: unknown, context) => {
             }),
         };
     }
-};
+}) satisfies Handler;

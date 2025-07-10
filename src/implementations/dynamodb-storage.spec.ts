@@ -1,47 +1,21 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { marshall } from '@aws-sdk/util-dynamodb';
 import { DynamoDBStorageService } from './dynamodb-storage';
-import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-
-// Mock AWS SDK
-vi.mock('@aws-sdk/client-dynamodb', () => {
-    const mockSend = vi.fn();
-    const mockClient = vi.fn().mockImplementation(() => ({
-        send: mockSend,
-    }));
-
-    return {
-        DynamoDBClient: mockClient,
-        PutItemCommand: vi.fn(),
-        QueryCommand: vi.fn(),
-        ScanCommand: vi.fn(),
-        DeleteItemCommand: vi.fn(),
-    };
-});
-
-vi.mock('@aws-sdk/util-dynamodb', () => ({
-    marshall: vi.fn((obj) => obj),
-    unmarshall: vi.fn((obj) => obj),
-}));
 
 describe('DynamoDBStorageService', () => {
     let storageService: DynamoDBStorageService;
-    let mockClient: {
-        send: ReturnType<typeof vi.fn>;
-    };
+    let mockClient: { send: ReturnType<typeof vi.fn> };
 
     beforeEach(() => {
         vi.clearAllMocks();
-        storageService = new DynamoDBStorageService('test-table', 'eu-central-1');
-        mockClient = (DynamoDBClient as unknown as { mock: { results: [{ value: unknown }] } }).mock.results[0]
-            .value as {
-            send: ReturnType<typeof vi.fn>;
-        };
+        mockClient = { send: vi.fn() };
+        storageService = new DynamoDBStorageService({ tableName: 'test-table', client: mockClient });
     });
 
     describe('hasMessageBeenSentToday', () => {
         it('should return true if message exists for today', async () => {
             mockClient.send.mockResolvedValueOnce({
-                Items: [{ id: 'Munich#weather_reminder#2024-01-01' }],
+                Items: [marshall({ id: 'Munich#weather_reminder#2024-01-01' })],
             });
 
             const result = await storageService.hasMessageBeenSentToday('weather_reminder', 'Munich');
@@ -97,8 +71,22 @@ describe('DynamoDBStorageService', () => {
     describe('getMessageHistory', () => {
         it('should return message history sorted by timestamp', async () => {
             const mockItems = [
-                { id: 'Munich#weather_reminder#2024-01-01', timestamp: 1640995200000 },
-                { id: 'Munich#weather_warning#2024-01-02', timestamp: 1641081600000 },
+                marshall({
+                    id: 'Munich#weather_reminder#2024-01-01',
+                    date: '2024-01-01',
+                    timestamp: 1640995200000,
+                    messageType: 'weather_reminder',
+                    location: 'Munich',
+                    ttl: 1672531200,
+                }),
+                marshall({
+                    id: 'Munich#weather_warning#2024-01-02',
+                    date: '2024-01-02',
+                    timestamp: 1641081600000,
+                    messageType: 'weather_warning',
+                    location: 'Munich',
+                    ttl: 1672617600,
+                }),
             ];
 
             mockClient.send.mockResolvedValueOnce({
@@ -131,20 +119,22 @@ describe('DynamoDBStorageService', () => {
     describe('getWeeklyMessageStats', () => {
         it('should return weekly stats with message count', async () => {
             const mockItems = [
-                {
+                marshall({
                     id: 'Munich#weather_reminder#2024-01-01',
                     messageType: 'weather_reminder',
                     location: 'Munich',
                     date: '2024-01-01',
                     timestamp: 1640995200000,
-                },
-                {
+                    ttl: 1672531200,
+                }),
+                marshall({
                     id: 'Munich#weather_reminder#2024-01-02',
                     messageType: 'weather_reminder',
                     location: 'Munich',
                     date: '2024-01-02',
                     timestamp: 1641081600000,
-                },
+                    ttl: 1672617600,
+                }),
             ];
 
             mockClient.send.mockResolvedValueOnce({
@@ -161,13 +151,14 @@ describe('DynamoDBStorageService', () => {
 
         it('should return stats showing can send message when under limit', async () => {
             const mockItems = [
-                {
+                marshall({
                     id: 'Munich#weather_reminder#2024-01-01',
                     messageType: 'weather_reminder',
                     location: 'Munich',
                     date: '2024-01-01',
                     timestamp: 1640995200000,
-                },
+                    ttl: 1672531200,
+                }),
             ];
 
             mockClient.send.mockResolvedValueOnce({
@@ -192,13 +183,14 @@ describe('DynamoDBStorageService', () => {
     describe('canSendMessageThisWeek', () => {
         it('should return true when under weekly limit', async () => {
             const mockItems = [
-                {
+                marshall({
                     id: 'Munich#weather_reminder#2024-01-01',
                     messageType: 'weather_reminder',
                     location: 'Munich',
                     date: '2024-01-01',
                     timestamp: 1640995200000,
-                },
+                    ttl: 1672531200,
+                }),
             ];
 
             mockClient.send.mockResolvedValueOnce({
@@ -211,20 +203,22 @@ describe('DynamoDBStorageService', () => {
 
         it('should return false when weekly limit reached', async () => {
             const mockItems = [
-                {
+                marshall({
                     id: 'Munich#weather_reminder#2024-01-01',
                     messageType: 'weather_reminder',
                     location: 'Munich',
                     date: '2024-01-01',
                     timestamp: 1640995200000,
-                },
-                {
+                    ttl: 1672531200,
+                }),
+                marshall({
                     id: 'Munich#weather_reminder#2024-01-02',
                     messageType: 'weather_reminder',
                     location: 'Munich',
                     date: '2024-01-02',
                     timestamp: 1641081600000,
-                },
+                    ttl: 1672617600,
+                }),
             ];
 
             mockClient.send.mockResolvedValueOnce({
@@ -239,8 +233,22 @@ describe('DynamoDBStorageService', () => {
     describe('cleanupOldRecords', () => {
         it('should delete old records', async () => {
             const mockOldItems = [
-                { id: 'Munich#weather_reminder#2023-01-01' },
-                { id: 'Munich#weather_warning#2023-01-02' },
+                marshall({
+                    id: 'Munich#weather_reminder#2023-01-01',
+                    date: '2023-01-01',
+                    timestamp: 1672531200000,
+                    messageType: 'weather_reminder',
+                    location: 'Munich',
+                    ttl: 1672531200,
+                }),
+                marshall({
+                    id: 'Munich#weather_warning#2023-01-02',
+                    date: '2023-01-02',
+                    timestamp: 1672617600000,
+                    messageType: 'weather_warning',
+                    location: 'Munich',
+                    ttl: 1672617600,
+                }),
             ];
 
             mockClient.send.mockResolvedValueOnce({ Items: mockOldItems }).mockResolvedValue({});

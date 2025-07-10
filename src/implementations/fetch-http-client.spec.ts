@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { FetchHttpClient } from './fetch-http-client';
 
 // Mock fetch for testing

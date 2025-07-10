@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { WebhookSlackServiceImpl } from './webhook-slack';
 import { HttpClient } from '../interfaces/http-client.interface';
 

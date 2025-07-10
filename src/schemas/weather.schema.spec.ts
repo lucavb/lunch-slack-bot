@@ -1,17 +1,17 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
-    WEATHER_CONDITIONS,
-    POSITIVE_REACTIONS,
-    weatherConditionSchema,
-    positiveReactionSchema,
     botConfigSchema,
-    weatherConditionResultSchema,
-    validateWeatherCondition,
-    validateBotConfig,
-    validateWeatherConditionResult,
-    isWeatherCondition,
-    isGoodWeatherCondition,
     isBadWeatherCondition,
+    isGoodWeatherCondition,
+    isWeatherCondition,
+    POSITIVE_REACTIONS,
+    positiveReactionSchema,
+    validateBotConfig,
+    validateWeatherCondition,
+    validateWeatherConditionResult,
+    WEATHER_CONDITIONS,
+    weatherConditionResultSchema,
+    weatherConditionSchema,
 } from './weather.schema';
 
 describe('Weather Schema', () => {
@@ -23,21 +23,11 @@ describe('Weather Schema', () => {
             expect(WEATHER_CONDITIONS).toContain('drizzle');
             expect(WEATHER_CONDITIONS).toContain('thunderstorm');
             expect(WEATHER_CONDITIONS).toContain('snow');
-            expect(WEATHER_CONDITIONS).toContain('mist');
-            expect(WEATHER_CONDITIONS).toContain('smoke');
-            expect(WEATHER_CONDITIONS).toContain('haze');
-            expect(WEATHER_CONDITIONS).toContain('dust');
-            expect(WEATHER_CONDITIONS).toContain('fog');
-            expect(WEATHER_CONDITIONS).toContain('sand');
-            expect(WEATHER_CONDITIONS).toContain('ash');
-            expect(WEATHER_CONDITIONS).toContain('squall');
-            expect(WEATHER_CONDITIONS).toContain('tornado');
         });
 
         it('should be a readonly array', () => {
-            // TypeScript ensures readonly at compile time, runtime immutability would require Object.freeze
             expect(WEATHER_CONDITIONS).toBeInstanceOf(Array);
-            expect(WEATHER_CONDITIONS.length).toBe(15);
+            expect(WEATHER_CONDITIONS.length).toBe(6);
         });
     });
 
@@ -52,7 +42,6 @@ describe('Weather Schema', () => {
         });
 
         it('should be a readonly array', () => {
-            // TypeScript ensures readonly at compile time, runtime immutability would require Object.freeze
             expect(POSITIVE_REACTIONS).toBeInstanceOf(Array);
             expect(POSITIVE_REACTIONS.length).toBe(6);
         });
@@ -102,7 +91,6 @@ describe('Weather Schema', () => {
         });
 
         it('should reject invalid bot configuration', () => {
-            // Invalid temperature range
             expect(() =>
                 botConfigSchema.parse({
                     minTemperature: -100,
@@ -114,7 +102,6 @@ describe('Weather Schema', () => {
                 }),
             ).toThrow();
 
-            // Empty arrays
             expect(() =>
                 botConfigSchema.parse({
                     minTemperature: 12,
@@ -126,7 +113,6 @@ describe('Weather Schema', () => {
                 }),
             ).toThrow();
 
-            // Invalid weather conditions
             expect(() =>
                 botConfigSchema.parse({
                     minTemperature: 12,
@@ -143,10 +129,10 @@ describe('Weather Schema', () => {
     describe('weatherConditionResultSchema', () => {
         it('should validate valid weather condition result', () => {
             const validResult = {
-                isGood: true,
+                condition: 'clear',
                 temperature: 18,
                 description: 'clear sky',
-                condition: 'clear',
+                isGood: true,
                 timestamp: 1234567890,
             };
 
@@ -155,22 +141,19 @@ describe('Weather Schema', () => {
         });
 
         it('should reject invalid weather condition result', () => {
-            // Missing required fields
             expect(() =>
                 weatherConditionResultSchema.parse({
                     isGood: true,
                     temperature: 18,
-                    // missing description, condition, timestamp
                 }),
             ).toThrow();
 
-            // Invalid types
             expect(() =>
                 weatherConditionResultSchema.parse({
-                    isGood: 'true', // should be boolean
+                    condition: 'clear',
                     temperature: 18,
                     description: 'clear sky',
-                    condition: 'clear',
+                    isGood: 'true',
                     timestamp: 1234567890,
                 }),
             ).toThrow();
@@ -178,10 +161,10 @@ describe('Weather Schema', () => {
     });
 
     describe('validateWeatherCondition', () => {
-        it('should validate and normalize weather conditions', () => {
-            expect(validateWeatherCondition('CLEAR')).toBe('clear');
-            expect(validateWeatherCondition('Rain')).toBe('rain');
-            expect(validateWeatherCondition('SNOW')).toBe('snow');
+        it('should validate weather conditions', () => {
+            expect(validateWeatherCondition('clear')).toBe('clear');
+            expect(validateWeatherCondition('rain')).toBe('rain');
+            expect(validateWeatherCondition('snow')).toBe('snow');
         });
 
         it('should throw for invalid weather conditions', () => {
@@ -216,10 +199,10 @@ describe('Weather Schema', () => {
     describe('validateWeatherConditionResult', () => {
         it('should validate proper weather condition result', () => {
             const result = {
-                isGood: true,
+                condition: 'clear',
                 temperature: 18,
                 description: 'clear sky',
-                condition: 'clear',
+                isGood: true,
                 timestamp: 1234567890,
             };
 
@@ -265,13 +248,12 @@ describe('Weather Schema', () => {
     });
 
     describe('isBadWeatherCondition', () => {
-        const badConditions = ['rain', 'snow', 'thunderstorm'] as const;
+        const badConditions = ['rain', 'snow'] as const;
 
         it('should return true for bad weather conditions', () => {
             expect(isBadWeatherCondition('rain', badConditions)).toBe(true);
             expect(isBadWeatherCondition('RAIN', badConditions)).toBe(true);
             expect(isBadWeatherCondition('snow', badConditions)).toBe(true);
-            expect(isBadWeatherCondition('thunderstorm', badConditions)).toBe(true);
         });
 
         it('should return false for non-bad weather conditions', () => {

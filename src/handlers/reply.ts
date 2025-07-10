@@ -1,128 +1,156 @@
-import { APIGatewayProxyHandler, APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
+import { APIGatewayProxyEvent, APIGatewayProxyHandler } from 'aws-lambda';
 import { z } from 'zod';
-import { getConfig } from '../utils/env';
-import { getCoordinates } from '../utils/env';
+import { getConfig, getCoordinates } from '../utils/env';
 import { DynamoDBStorageService } from '../implementations/dynamodb-storage';
+import { SecretsManagerClientImpl } from '../implementations/secrets-manager-client';
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 
-const overridesSchema = z
-    .object({
-        badWeatherConditions: z.array(z.string()).optional(),
-        dynamodbTableName: z.string().min(1).optional(),
-        goodWeatherConditions: z.array(z.string()).optional(),
-        locationLat: z.number().min(-90).max(90).optional(),
-        locationLon: z.number().min(-180).max(180).optional(),
-        locationName: z.string().min(1).optional(),
-        minTemperature: z.number().min(-50).max(50).optional(),
-        replyApiUrl: z.string().url().optional(),
-        slackWebhookUrl: z.string().url().optional(),
-        weatherCheckHour: z.number().min(0).max(23).optional(),
-    })
-    .optional();
-
-const replySchema = z.object({
+const replyRequestSchema = z.object({
     action: z.enum(['confirm-lunch']).default('confirm-lunch'),
     location: z.string().optional(),
-    overrides: overridesSchema,
 });
 
 export const handler = (async (
-    event: Pick<APIGatewayProxyEvent, 'queryStringParameters' | 'httpMethod' | 'body'>,
-): Promise<APIGatewayProxyResult> => {
+    event: Pick<APIGatewayProxyEvent, 'httpMethod' | 'body' | 'queryStringParameters'>,
+    _?: unknown,
+    __?: unknown,
+    dependencies: {
+        storageService?: Pick<DynamoDBStorageService, 'hasLunchBeenConfirmedThisWeek' | 'recordLunchConfirmation'>;
+        secretsManagerClientImpl?: Pick<SecretsManagerClientImpl, 'getSecretValue'>;
+    } = {},
+) => {
     console.log('Reply handler started', { event });
 
-    // Set CORS headers
-    const corsHeaders = {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type',
-        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    };
-
-    // Handle preflight requests
-    if (event.httpMethod === 'OPTIONS') {
-        return {
-            statusCode: 200,
-            headers: corsHeaders,
-            body: JSON.stringify({ message: 'CORS preflight successful' }),
-        };
-    }
-
-    // Allow POST and GET requests
-    if (event.httpMethod !== 'POST' && event.httpMethod !== 'GET') {
-        return {
-            statusCode: 405,
-            headers: corsHeaders,
-            body: JSON.stringify({
-                error: 'Method not allowed',
-                message: 'Only POST and GET requests are supported',
-            }),
-        };
-    }
-
     try {
-        // Parse request data from either body (POST) or query parameters (GET)
-        let requestData;
+        const corsHeaders = {
+            'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
+            'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+            'Access-Control-Allow-Origin': '*',
+        } as const;
 
-        if (event.httpMethod === 'GET') {
-            requestData = {
-                action: event.queryStringParameters?.['action'] || 'confirm-lunch',
-                location: event.queryStringParameters?.['location'],
+        if (event.httpMethod === 'OPTIONS') {
+            return {
+                statusCode: 200,
+                headers: corsHeaders,
+                body: JSON.stringify({ message: 'CORS preflight successful' }),
             };
-        } else {
+        }
+
+        if (!['POST', 'GET'].includes(event.httpMethod)) {
+            return {
+                body: JSON.stringify({ error: 'Method not allowed', allowedMethods: ['GET', 'POST', 'OPTIONS'] }),
+                headers: corsHeaders,
+                statusCode: 405,
+            };
+        }
+
+        let requestData = {};
+
+        if (event.httpMethod === 'POST' && event.body) {
             try {
-                requestData = event.body ? JSON.parse(event.body) : {};
-            } catch {
+                requestData = JSON.parse(event.body);
+            } catch (error) {
                 return {
                     statusCode: 400,
                     headers: corsHeaders,
                     body: JSON.stringify({
-                        error: 'Invalid JSON',
-                        message: 'Request body must be valid JSON',
+                        error: 'Invalid JSON in request body',
+                        details: error instanceof Error ? error.message : 'Unknown parsing error',
                     }),
                 };
             }
+        } else if (event.httpMethod === 'GET' && event.queryStringParameters) {
+            requestData = event.queryStringParameters;
         }
 
-        // Validate the request
-        const parseResult = replySchema.safeParse(requestData);
+        const parseResult = replyRequestSchema.safeParse(requestData);
         if (!parseResult.success) {
             return {
                 statusCode: 400,
                 headers: corsHeaders,
                 body: JSON.stringify({
-                    error: 'Invalid request',
+                    error: 'Invalid request parameters',
                     details: parseResult.error.issues,
+                    allowedActions: ['confirm-lunch'],
                 }),
             };
         }
 
-        const { action, location: requestLocation, overrides } = parseResult.data;
+        const { action, location: customLocation } = parseResult.data;
 
-        const config = getConfig(overrides || {});
-        const coordinates = getCoordinates(overrides || {});
-        const location = requestLocation || coordinates.locationName;
+        const config = await getConfig(undefined, { secretsManagerClientImpl: dependencies.secretsManagerClientImpl });
+        const coordinates = await getCoordinates();
 
-        console.log('Processing reply action:', action, 'for location:', location);
+        const locationName = customLocation || coordinates.locationName;
 
-        const storageService = new DynamoDBStorageService(config.dynamodbTableName, config.awsRegion);
-        switch (action) {
-            case 'confirm-lunch':
-                return await handleLunchConfirmation(storageService, location, corsHeaders);
-            default:
+        console.log(`Processing reply action: ${action} for location: ${locationName}`);
+
+        const storageService =
+            dependencies.storageService ??
+            new DynamoDBStorageService({
+                client: new DynamoDBClient({ region: config.awsRegion }),
+                tableName: config.dynamodbTableName,
+            });
+
+        if (action === 'confirm-lunch') {
+            const alreadyConfirmed = await storageService.hasLunchBeenConfirmedThisWeek(locationName);
+
+            if (alreadyConfirmed) {
+                console.log(`Lunch already confirmed this week for location: ${locationName}`);
                 return {
-                    statusCode: 400,
+                    statusCode: 200,
                     headers: corsHeaders,
                     body: JSON.stringify({
-                        error: 'Unsupported action',
-                        message: `Action '${action}' is not supported`,
+                        message: 'Lunch already confirmed this week! No more weather reminders will be sent.',
+                        location: locationName,
+                        alreadyConfirmed: true,
+                        config: {
+                            ...config,
+                            slackWebhookUrl: '[REDACTED]',
+                        },
                     }),
                 };
+            }
+
+            await storageService.recordLunchConfirmation(locationName);
+            console.log(`Successfully recorded lunch confirmation for location: ${locationName}`);
+
+            return {
+                statusCode: 200,
+                headers: corsHeaders,
+                body: JSON.stringify({
+                    message:
+                        'Thanks for confirming! Lunch confirmed for this week. No more weather reminders will be sent.',
+                    action,
+                    location: locationName,
+                    confirmed: true,
+                    config: {
+                        ...config,
+                        slackWebhookUrl: '[REDACTED]',
+                    },
+                }),
+            };
         }
+
+        return {
+            statusCode: 400,
+            headers: corsHeaders,
+            body: JSON.stringify({
+                error: 'Unknown action',
+                providedAction: action,
+                allowedActions: ['confirm-lunch'],
+            }),
+        };
     } catch (error) {
         console.error('Error in reply handler:', error);
 
         return {
             statusCode: 500,
-            headers: corsHeaders,
+            headers: {
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
+                'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+            },
             body: JSON.stringify({
                 error: 'Internal server error',
                 message: error instanceof Error ? error.message : 'Unknown error',
@@ -130,41 +158,3 @@ export const handler = (async (
         };
     }
 }) satisfies APIGatewayProxyHandler;
-
-async function handleLunchConfirmation(
-    storageService: DynamoDBStorageService,
-    location: string,
-    corsHeaders: Record<string, string>,
-): Promise<APIGatewayProxyResult> {
-    const alreadyConfirmed = await storageService.hasLunchBeenConfirmedThisWeek(location);
-
-    if (alreadyConfirmed) {
-        console.log('Lunch already confirmed this week for location:', location);
-        return {
-            statusCode: 200,
-            headers: corsHeaders,
-            body: JSON.stringify({
-                action: 'confirm-lunch',
-                message: 'Lunch already confirmed this week',
-                location,
-                alreadyConfirmed: true,
-            }),
-        };
-    }
-
-    await storageService.recordLunchConfirmation(location);
-
-    console.log('Successfully recorded lunch confirmation for location:', location);
-
-    return {
-        statusCode: 200,
-        headers: corsHeaders,
-        body: JSON.stringify({
-            action: 'confirm-lunch',
-            message: 'Lunch confirmation recorded successfully',
-            location,
-            confirmed: true,
-            timestamp: new Date().toISOString(),
-        }),
-    };
-}

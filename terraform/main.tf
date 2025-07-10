@@ -1,5 +1,14 @@
 terraform {
   required_version = ">= 1.0"
+
+  backend "s3" {
+    bucket         = "lunch-weather-bot-terraform-state-9e1e6af1"
+    key            = "terraform.tfstate"
+    region         = "eu-central-1"
+    dynamodb_table = "lunch-weather-bot-terraform-locks"
+    encrypt        = true
+  }
+
   required_providers {
     aws = {
       source  = "hashicorp/aws"
@@ -45,4 +54,4 @@ resource "aws_lambda_permission" "eventbridge_weather_check" {
   function_name = aws_lambda_function.weather_check.function_name
   principal     = "events.amazonaws.com"
   source_arn    = aws_cloudwatch_event_rule.weather_check_schedule.arn
-} 
+}

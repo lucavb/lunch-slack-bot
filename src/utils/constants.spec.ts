@@ -1,13 +1,13 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
     BOT_CONFIG,
-    OPEN_METEO_API_BASE_URL,
-    LUNCH_MESSAGE_TEMPLATE,
     DYNAMO_TTL_DAYS,
-    NOON_HOUR,
-    SCHEDULER_HOUR,
     ERROR_MESSAGES,
+    LUNCH_MESSAGE_TEMPLATE,
     MAX_MESSAGES_PER_WEEK,
+    NOON_HOUR,
+    OPEN_METEO_API_BASE_URL,
+    SCHEDULER_HOUR,
 } from './constants';
 
 describe('Constants', () => {

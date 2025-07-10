@@ -6,6 +6,7 @@ export interface MessageRecord {
     location: string;
     temperature?: number;
     weatherCondition?: string;
+    ttl?: number;
 }
 
 export interface WeeklyMessageStats {

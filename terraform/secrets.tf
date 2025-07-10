@@ -1,16 +1,23 @@
-# Optional: Production secrets management using AWS Secrets Manager
-# Uncomment and modify if you want to use AWS Secrets Manager instead of terraform.tfvars
+# AWS Secrets Manager secret for storing Slack webhook URL
+resource "aws_secretsmanager_secret" "slack_webhook" {
+  name        = "lunch-bot${local.name_suffix}/slack-webhook"
+  description = "Slack webhook URL for lunch weather bot"
 
-# data "aws_secretsmanager_secret" "slack_webhook" {
-#   name = "lunch-bot${local.name_suffix}/slack-webhook"
-# }
+  tags = var.tags
+}
 
-# data "aws_secretsmanager_secret_version" "slack_webhook" {
-#   secret_id = data.aws_secretsmanager_secret.slack_webhook.id
-# }
+# Note: The secret value must be manually populated via AWS Console, CLI, or separate deployment
+# The secret expects a JSON structure like: {"webhook_url": "https://hooks.slack.com/services/..."}
+# This cannot be stored in Terraform as it would expose the webhook URL in the state file
 
-# locals {
-#   slack_webhook_url = jsondecode(data.aws_secretsmanager_secret_version.slack_webhook.secret_string)["webhook_url"]
-# }
+# Local value to reference the secret ARN for Lambda environment
+locals {
+  slack_webhook_secret_arn = aws_secretsmanager_secret.slack_webhook.arn
+}
 
-# Then use local.slack_webhook_url instead of var.slack_webhook_url in lambda.tf 
+# Output the secret ARN for reference
+output "slack_webhook_secret_arn" {
+  description = "ARN of the Slack webhook secret in AWS Secrets Manager"
+  value       = aws_secretsmanager_secret.slack_webhook.arn
+  sensitive   = true
+} 

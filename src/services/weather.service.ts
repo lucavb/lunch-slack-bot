@@ -1,11 +1,12 @@
 import { WeatherApi, WeatherService as WeatherServiceInterface } from '../interfaces/weather-api.interface';
-import { WeatherCondition, Coordinates } from '../types/index';
+import { Coordinates } from '../types/index';
+import { WeatherConditionResult, WeatherCondition } from '../schemas/weather.schema';
 import { OpenMeteoHourlyPoint } from '../schemas/openmeteo.schema';
 
 export interface WeatherConfig {
-    minTemperature: number;
-    goodWeatherConditions: readonly string[];
     badWeatherConditions: readonly string[];
+    goodWeatherConditions: readonly string[];
+    minTemperature: number;
     weatherCheckHour: number;
 }
 
@@ -82,7 +83,7 @@ export class WeatherService implements WeatherServiceInterface {
     /**
      * Convert Open-Meteo weather code to readable condition
      */
-    private getWeatherCondition(weatherCode: number): { condition: string; description: string } {
+    private getWeatherCondition(weatherCode: number): { condition: WeatherCondition; description: string } {
         // Open-Meteo weather codes: https://open-meteo.com/en/docs
         if (weatherCode <= 3) {
             return { condition: 'clear', description: 'Clear to partly cloudy' };
@@ -97,14 +98,14 @@ export class WeatherService implements WeatherServiceInterface {
         } else if (weatherCode <= 99) {
             return { condition: 'thunderstorm', description: 'Thunderstorm' };
         } else {
-            return { condition: 'unknown', description: 'Unknown weather' };
+            return { condition: 'clouds', description: 'Unknown weather' };
         }
     }
 
     /**
      * Determine if weather conditions are good for outdoor lunch
      */
-    async isWeatherGood(coordinates: Coordinates): Promise<WeatherCondition> {
+    async isWeatherGood(coordinates: Coordinates): Promise<WeatherConditionResult> {
         try {
             const forecast = await this.getNoonForecast(coordinates);
 
@@ -113,7 +114,7 @@ export class WeatherService implements WeatherServiceInterface {
                     isGood: false,
                     temperature: 0,
                     description: 'No forecast available',
-                    condition: 'unknown',
+                    condition: 'clouds',
                     timestamp: Date.now(),
                 };
             }
@@ -131,7 +132,7 @@ export class WeatherService implements WeatherServiceInterface {
 
             const isGood = temperatureGood && conditionGood;
 
-            const result: WeatherCondition = {
+            const result: WeatherConditionResult = {
                 isGood,
                 temperature,
                 description: weatherInfo.description,

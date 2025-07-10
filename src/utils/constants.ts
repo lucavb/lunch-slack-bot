@@ -1,7 +1,6 @@
 import { BotConfig } from '../types/index';
 import { validateBotConfig } from '../schemas/weather.schema';
 
-// Bot configuration with proper type safety
 const botConfigData = {
     minTemperature: 12,
     goodWeatherConditions: ['clear', 'clouds'] as const,

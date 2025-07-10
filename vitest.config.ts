@@ -13,13 +13,13 @@ export default defineConfig({
             exclude: ['src/**/*.{test,spec}.{js,ts}', 'src/**/*.d.ts'],
         },
         env: {
-            SLACK_WEBHOOK_URL: 'https://hooks.slack.com/services/test',
-            WEATHER_API_KEY: 'test-weather-key',
-            LOCATION_NAME: 'Munich',
+            AWS_DEFAULT_REGION: 'eu-central-1',
+            DYNAMODB_TABLE_NAME: 'test-table',
             LOCATION_LAT: '48.1351',
             LOCATION_LON: '11.5820',
-            DYNAMODB_TABLE_NAME: 'test-table',
-            AWS_REGION: 'eu-central-1',
+            LOCATION_NAME: 'Munich',
+            REPLY_API_URL: 'https://api.test.com',
+            SLACK_WEBHOOK_SECRET_ARN: 'arn:aws:secretsmanager:eu-central-1:123456789012:secret:test-secret',
         },
     },
 });

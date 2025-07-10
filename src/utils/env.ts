@@ -1,65 +1,105 @@
 import { z } from 'zod';
-import { NOON_HOUR, BOT_CONFIG } from './constants';
+import { BOT_CONFIG, NOON_HOUR } from './constants';
+import { SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
+import { SecretsManagerClientImpl } from '../implementations/secrets-manager-client';
 
 const envSchema = z.object({
-    SLACK_WEBHOOK_URL: z.string().url('SLACK_WEBHOOK_URL must be a valid URL'),
     AWS_DEFAULT_REGION: z.string().default('eu-central-1'),
-    LOCATION_NAME: z.string().min(1, 'LOCATION_NAME is required'),
-    LOCATION_LAT: z
-        .string()
-        .transform((val) => parseFloat(val))
-        .pipe(z.number().min(-90).max(90)),
-    LOCATION_LON: z
-        .string()
-        .transform((val) => parseFloat(val))
-        .pipe(z.number().min(-180).max(180)),
     DYNAMODB_TABLE_NAME: z.string().min(1, 'DYNAMODB_TABLE_NAME is required'),
+    LOCATION_LAT: z.coerce.number().pipe(z.number().min(-90).max(90)),
+    LOCATION_LON: z.coerce.number().pipe(z.number().min(-180).max(180)),
+    LOCATION_NAME: z.string().min(1, 'LOCATION_NAME is required'),
     REPLY_API_URL: z.string().url('REPLY_API_URL must be a valid URL'),
+    SLACK_WEBHOOK_SECRET_ARN: z.string().min(1, 'SLACK_WEBHOOK_SECRET_ARN is required'),
 });
 
-export const env = envSchema.parse(process.env);
+let cachedEnv: z.infer<typeof envSchema> | null = null;
+let cachedWebhookUrl: string | null = null;
+let secretsManagerClient: SecretsManagerClientImpl | null = null;
 
-export type Env = z.infer<typeof envSchema>;
+const getEnv = () => {
+    if (!cachedEnv) {
+        cachedEnv = envSchema.parse(process.env);
+    }
+    return cachedEnv;
+};
 
-export const eventOverridesSchema = z
-    .object({
-        slackWebhookUrl: z.string().url().optional(),
-        locationName: z.string().min(1).optional(),
-        locationLat: z.number().min(-90).max(90).optional(),
-        locationLon: z.number().min(-180).max(180).optional(),
-        dynamodbTableName: z.string().min(1).optional(),
-        replyApiUrl: z.string().url().optional(),
-        minTemperature: z.number().min(-50).max(50).optional(),
-        goodWeatherConditions: z.array(z.string()).optional(),
-        badWeatherConditions: z.array(z.string()).optional(),
-        weatherCheckHour: z.number().min(0).max(23).optional(),
-    })
-    .optional();
+const getSecretsManagerClient = () => {
+    if (!secretsManagerClient) {
+        const env = getEnv();
+        const client = new SecretsManagerClient({ region: env.AWS_DEFAULT_REGION });
+        secretsManagerClient = new SecretsManagerClientImpl(client);
+    }
+    return secretsManagerClient;
+};
+
+const getWebhookUrl = async (
+    secretsManagerClient?: Pick<SecretsManagerClientImpl, 'getSecretValue'>,
+): Promise<string> => {
+    if (cachedWebhookUrl) {
+        return cachedWebhookUrl;
+    }
+
+    const env = getEnv();
+    const secretsClient = secretsManagerClient ?? getSecretsManagerClient();
+
+    const secretValue = await secretsClient.getSecretValue(env.SLACK_WEBHOOK_SECRET_ARN);
+
+    if (typeof secretValue['webhook_url'] !== 'string') {
+        throw new Error('webhook_url not found in secret');
+    }
+
+    cachedWebhookUrl = secretValue['webhook_url'];
+    return cachedWebhookUrl;
+};
+
+export const eventOverridesSchema = z.object({
+    badWeatherConditions: z.array(z.string()).optional(),
+    goodWeatherConditions: z.array(z.string()).optional(),
+    locationLat: z.number().optional(),
+    locationLon: z.number().optional(),
+    locationName: z.string().optional(),
+    minTemperature: z.number().optional(),
+    slackWebhookUrl: z.url().optional(),
+    weatherCheckHour: z.number().optional(),
+});
 
 export type EventOverrides = z.infer<typeof eventOverridesSchema>;
 
-export const getConfig = (eventOverrides?: EventOverrides) => {
-    const overrides = eventOverridesSchema.parse(eventOverrides);
+export const getConfig = async (
+    eventOverrides?: EventOverrides,
+    dependencies: { secretsManagerClientImpl?: Pick<SecretsManagerClientImpl, 'getSecretValue'> | undefined } = {},
+) => {
+    const env = getEnv();
+    const slackWebhookUrl =
+        eventOverrides?.slackWebhookUrl || (await getWebhookUrl(dependencies.secretsManagerClientImpl));
 
     return {
-        slackWebhookUrl: overrides?.slackWebhookUrl ?? env.SLACK_WEBHOOK_URL,
         awsRegion: env.AWS_DEFAULT_REGION,
-        locationName: overrides?.locationName ?? env.LOCATION_NAME,
-        locationLat: overrides?.locationLat ?? env.LOCATION_LAT,
-        locationLon: overrides?.locationLon ?? env.LOCATION_LON,
-        dynamodbTableName: overrides?.dynamodbTableName ?? env.DYNAMODB_TABLE_NAME,
-        replyApiUrl: overrides?.replyApiUrl ?? env.REPLY_API_URL,
-        minTemperature: overrides?.minTemperature ?? BOT_CONFIG.minTemperature,
-        goodWeatherConditions: overrides?.goodWeatherConditions ?? BOT_CONFIG.goodWeatherConditions,
-        badWeatherConditions: overrides?.badWeatherConditions ?? BOT_CONFIG.badWeatherConditions,
-        weatherCheckHour: overrides?.weatherCheckHour ?? NOON_HOUR,
+        badWeatherConditions: eventOverrides?.badWeatherConditions || BOT_CONFIG.badWeatherConditions,
+        dynamodbTableName: env.DYNAMODB_TABLE_NAME,
+        goodWeatherConditions: eventOverrides?.goodWeatherConditions || BOT_CONFIG.goodWeatherConditions,
+        locationLat: eventOverrides?.locationLat || env.LOCATION_LAT,
+        locationLon: eventOverrides?.locationLon || env.LOCATION_LON,
+        locationName: eventOverrides?.locationName || env.LOCATION_NAME,
+        minTemperature: eventOverrides?.minTemperature || BOT_CONFIG.minTemperature,
+        replyApiUrl: env.REPLY_API_URL,
+        slackWebhookUrl,
+        weatherCheckHour: eventOverrides?.weatherCheckHour || NOON_HOUR,
     };
 };
-export const getCoordinates = (eventOverrides?: EventOverrides) => {
-    const config = getConfig(eventOverrides);
+
+export const getCoordinates = async (eventOverrides?: EventOverrides) => {
+    const config = await getConfig(eventOverrides);
     return {
         lat: config.locationLat,
         lon: config.locationLon,
         locationName: config.locationName,
     };
+};
+
+export const clearCache = () => {
+    cachedEnv = null;
+    cachedWebhookUrl = null;
+    secretsManagerClient = null;
 };

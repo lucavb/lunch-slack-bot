@@ -27,11 +27,7 @@ variable "deployment_suffix" {
   }
 }
 
-variable "slack_webhook_url" {
-  description = "Slack webhook URL for sending messages"
-  type        = string
-  sensitive   = true
-}
+
 
 variable "location_name" {
   description = "Name of the location for weather checks"

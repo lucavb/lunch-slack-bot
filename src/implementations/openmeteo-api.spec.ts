@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { OpenMeteoApi } from './openmeteo-api';
 import { HttpClient } from '../interfaces/http-client.interface';
 import { Coordinates } from '../types/index';
