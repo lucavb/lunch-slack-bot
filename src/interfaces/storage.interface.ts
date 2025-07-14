@@ -2,11 +2,12 @@ export interface MessageRecord {
     id: string;
     date: string; // YYYY-MM-DD format
     timestamp: number;
-    messageType: 'weather_reminder' | 'weather_warning' | 'lunch_confirmation';
+    messageType: 'weather_reminder' | 'weather_warning' | 'lunch_confirmation' | 'weather_warning_optin';
     location: string;
     temperature?: number;
     weatherCondition?: string;
     ttl?: number;
+    optedIn?: boolean;
 }
 
 export interface WeeklyMessageStats {
@@ -61,4 +62,14 @@ export interface StorageService {
      * Check if the team has confirmed they met for lunch this week
      */
     hasLunchBeenConfirmedThisWeek(location: string): Promise<boolean>;
+
+    /**
+     * Set opt-in status for weather warning messages for a location
+     */
+    setWeatherWarningOptInStatus(location: string, optedIn: boolean): Promise<void>;
+
+    /**
+     * Check if a location has opted in to receive weather warning messages
+     */
+    isOptedInToWeatherWarnings(location: string): Promise<boolean>;
 }

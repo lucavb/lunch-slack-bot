@@ -6,7 +6,7 @@ import { SecretsManagerClientImpl } from '../implementations/secrets-manager-cli
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 
 const replyRequestSchema = z.object({
-    action: z.enum(['confirm-lunch']).default('confirm-lunch'),
+    action: z.enum(['confirm-lunch', 'opt-in-warnings', 'opt-out-warnings']).default('confirm-lunch'),
     location: z.string().optional(),
 });
 
@@ -15,7 +15,10 @@ export const handler = (async (
     _?: unknown,
     __?: unknown,
     dependencies: {
-        storageService?: Pick<DynamoDBStorageService, 'hasLunchBeenConfirmedThisWeek' | 'recordLunchConfirmation'>;
+        storageService?: Pick<
+            DynamoDBStorageService,
+            'hasLunchBeenConfirmedThisWeek' | 'recordLunchConfirmation' | 'setWeatherWarningOptInStatus'
+        >;
         secretsManagerClientImpl?: Pick<SecretsManagerClientImpl, 'getSecretValue'>;
     } = {},
 ) => {
@@ -71,7 +74,7 @@ export const handler = (async (
                 body: JSON.stringify({
                     error: 'Invalid request parameters',
                     details: parseResult.error.issues,
-                    allowedActions: ['confirm-lunch'],
+                    allowedActions: ['confirm-lunch', 'opt-in-warnings', 'opt-out-warnings'],
                 }),
             };
         }
@@ -132,13 +135,55 @@ export const handler = (async (
             };
         }
 
+        if (action === 'opt-in-warnings') {
+            await storageService.setWeatherWarningOptInStatus(locationName, true);
+            console.log(`Successfully opted in to weather warnings for location: ${locationName}`);
+
+            return {
+                statusCode: 200,
+                headers: corsHeaders,
+                body: JSON.stringify({
+                    message:
+                        'Successfully opted in to weather warnings. You will now receive notifications when the weather is not suitable for outdoor lunch.',
+                    action,
+                    location: locationName,
+                    optedIn: true,
+                    config: {
+                        ...config,
+                        slackWebhookUrl: '[REDACTED]',
+                    },
+                }),
+            };
+        }
+
+        if (action === 'opt-out-warnings') {
+            await storageService.setWeatherWarningOptInStatus(locationName, false);
+            console.log(`Successfully opted out of weather warnings for location: ${locationName}`);
+
+            return {
+                statusCode: 200,
+                headers: corsHeaders,
+                body: JSON.stringify({
+                    message:
+                        'Successfully opted out of weather warnings. You will no longer receive notifications about bad weather.',
+                    action,
+                    location: locationName,
+                    optedIn: false,
+                    config: {
+                        ...config,
+                        slackWebhookUrl: '[REDACTED]',
+                    },
+                }),
+            };
+        }
+
         return {
             statusCode: 400,
             headers: corsHeaders,
             body: JSON.stringify({
                 error: 'Unknown action',
                 providedAction: action,
-                allowedActions: ['confirm-lunch'],
+                allowedActions: ['confirm-lunch', 'opt-in-warnings', 'opt-out-warnings'],
             }),
         };
     } catch (error) {

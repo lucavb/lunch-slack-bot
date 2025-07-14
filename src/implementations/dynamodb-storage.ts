@@ -1,7 +1,7 @@
 import { DeleteItemCommand, DynamoDBClient, PutItemCommand, QueryCommand, ScanCommand } from '@aws-sdk/client-dynamodb';
 import { marshall, unmarshall } from '@aws-sdk/util-dynamodb';
 import { MessageRecord, StorageService, WeeklyMessageStats } from '../interfaces/storage.interface';
-import { MAX_MESSAGES_PER_WEEK, DYNAMO_TTL_DAYS } from '../utils/constants';
+import { MAX_MESSAGES_PER_WEEK, DYNAMO_TTL_DAYS, DEFAULT_WEATHER_WARNINGS_ENABLED } from '../utils/constants';
 import { endOfWeek, format, startOfWeek, subDays } from 'date-fns';
 
 export class DynamoDBStorageService implements StorageService {
@@ -237,9 +237,7 @@ export class DynamoDBStorageService implements StorageService {
             const command = new QueryCommand({
                 TableName: this.tableName,
                 KeyConditionExpression: 'id = :id',
-                ExpressionAttributeValues: marshall({
-                    ':id': id,
-                }),
+                ExpressionAttributeValues: marshall({ ':id': id }),
                 Limit: 1,
             });
 
@@ -251,6 +249,59 @@ export class DynamoDBStorageService implements StorageService {
         } catch (error) {
             console.error('Error checking lunch confirmation:', error);
             throw new Error(`Failed to check lunch confirmation: ${error}`);
+        }
+    }
+
+    async setWeatherWarningOptInStatus(location: string, optedIn: boolean): Promise<void> {
+        const id = `${location}#weather_warning_optin`;
+        const ttl = Math.floor(Date.now() / 1000) + DYNAMO_TTL_DAYS * 24 * 60 * 60;
+
+        const record = {
+            date: format(new Date(), 'yyyy-MM-dd'),
+            id,
+            location,
+            messageType: 'weather_warning_optin',
+            optedIn,
+            timestamp: Date.now(),
+            ttl,
+        } as const satisfies MessageRecord;
+
+        try {
+            const command = new PutItemCommand({
+                TableName: this.tableName,
+                Item: marshall(record),
+            });
+
+            await this.client.send(command);
+            console.log(`Set weather warning opt-in status for ${location}: ${optedIn}`);
+        } catch (error) {
+            console.error('Error setting weather warning opt-in status:', error);
+            throw new Error(`Failed to set weather warning opt-in status: ${error}`);
+        }
+    }
+
+    async isOptedInToWeatherWarnings(location: string): Promise<boolean> {
+        const id = `${location}#weather_warning_optin`;
+
+        try {
+            const command = new QueryCommand({
+                TableName: this.tableName,
+                KeyConditionExpression: 'id = :id',
+                ExpressionAttributeValues: marshall({ ':id': id }),
+                Limit: 1,
+            });
+
+            const result = await this.client.send(command);
+
+            if (!result.Items || result.Items.length === 0) {
+                return DEFAULT_WEATHER_WARNINGS_ENABLED; // Return default if no setting exists
+            }
+
+            const record = unmarshall(result.Items[0]);
+            return !!record['optedIn'];
+        } catch (error) {
+            console.error('Error checking weather warning opt-in status:', error);
+            throw new Error(`Failed to check weather warning opt-in status: ${error}`);
         }
     }
 }

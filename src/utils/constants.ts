@@ -48,6 +48,7 @@ export const NOON_HOUR = 12; // 12 PM / noon
 export const SCHEDULER_HOUR = 10; // 10 AM for weather check
 export const DYNAMO_TTL_DAYS = 30;
 export const MAX_MESSAGES_PER_WEEK = 2;
+export const DEFAULT_WEATHER_WARNINGS_ENABLED = false; // Weather warnings are opt-in by default
 
 export const ERROR_MESSAGES = {
     WEATHER_API_ERROR: 'Failed to fetch weather data',

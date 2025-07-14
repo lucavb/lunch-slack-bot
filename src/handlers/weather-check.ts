@@ -143,34 +143,42 @@ export const handler = (async (event: unknown) => {
             messageType = 'weather_reminder';
             console.log('Sent weather reminder successfully with confirmation link');
         } else {
-            const canSendWarning = await storageService.canSendMessageThisWeek(
-                coordinates.locationName,
-                'weather_warning',
-            );
-            const alreadySentWarningToday = await storageService.hasMessageBeenSentToday(
-                'weather_warning',
-                coordinates.locationName,
-            );
+            // Check if location has opted in to receive weather warnings
+            const isOptedInForWarnings = await storageService.isOptedInToWeatherWarnings(coordinates.locationName);
 
-            if (canSendWarning && !alreadySentWarningToday) {
-                await slackService.sendWeatherWarning(
-                    weatherCondition.temperature,
-                    weatherCondition.description,
+            if (!isOptedInForWarnings) {
+                console.log('Location has not opted in to receive weather warnings, skipping');
+            } else {
+                const canSendWarning = await storageService.canSendMessageThisWeek(
                     coordinates.locationName,
+                    'weather_warning',
                 );
-
-                await storageService.recordMessageSent(
+                const alreadySentWarningToday = await storageService.hasMessageBeenSentToday(
                     'weather_warning',
                     coordinates.locationName,
-                    weatherCondition.temperature,
-                    weatherCondition.condition,
                 );
 
-                messageSent = true;
-                messageType = 'weather_warning';
-                console.log('Sent weather warning successfully');
-            } else {
-                console.log('Weather warning skipped due to weekly limit or already sent today');
+                if (canSendWarning && !alreadySentWarningToday) {
+                    await slackService.sendWeatherWarning(
+                        weatherCondition.temperature,
+                        weatherCondition.description,
+                        coordinates.locationName,
+                        config.replyApiUrl,
+                    );
+
+                    await storageService.recordMessageSent(
+                        'weather_warning',
+                        coordinates.locationName,
+                        weatherCondition.temperature,
+                        weatherCondition.condition,
+                    );
+
+                    messageSent = true;
+                    messageType = 'weather_warning';
+                    console.log('Sent weather warning successfully');
+                } else {
+                    console.log('Weather warning skipped due to weekly limit or already sent today');
+                }
             }
         }
 

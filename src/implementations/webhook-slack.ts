@@ -47,14 +47,27 @@ export class WebhookSlackServiceImpl implements WebhookSlackService {
         );
     }
 
-    async sendWeatherWarning(temperature: number, description: string, locationName: string): Promise<void> {
-        const messageText = `🌧️ **Weather Update for ${locationName}**
+    async sendWeatherWarning(
+        temperature: number,
+        description: string,
+        locationName: string,
+        apiUrl?: string,
+    ): Promise<void> {
+        const baseMessage = `🌧️ **Weather Update for ${locationName}**
 
 Unfortunately, the weather isn't great for an outdoor lunch today:
 • Temperature: ${temperature}°C
 • Conditions: ${description}
 
 Maybe consider indoor lunch options or wait for better weather! 🏢☕`;
+
+        const optOutMessage = apiUrl
+            ? `_Don't want these weather warnings? <${apiUrl}?action=opt-out-warnings&location=${encodeURIComponent(locationName)}|Click here to opt out>_`
+            : `_Don't want these weather warnings? You can opt out anytime._`;
+
+        const messageText = `${baseMessage}
+
+${optOutMessage}`;
 
         const blocks = [
             {

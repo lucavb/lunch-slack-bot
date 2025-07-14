@@ -25,11 +25,16 @@ describe('Reply Handler', () => {
         vi.clearAllMocks();
         clearCache();
 
-        mockStorageService = { hasLunchBeenConfirmedThisWeek: vi.fn(), recordLunchConfirmation: vi.fn() };
+        mockStorageService = {
+            hasLunchBeenConfirmedThisWeek: vi.fn(),
+            recordLunchConfirmation: vi.fn(),
+            setWeatherWarningOptInStatus: vi.fn(),
+        };
         mockSecretsManagerClient = { getSecretValue: vi.fn() };
 
         vi.spyOn(mockStorageService, 'hasLunchBeenConfirmedThisWeek').mockResolvedValue(false);
         vi.spyOn(mockStorageService, 'recordLunchConfirmation').mockResolvedValue(undefined);
+        vi.spyOn(mockStorageService, 'setWeatherWarningOptInStatus').mockResolvedValue(undefined);
         vi.spyOn(mockSecretsManagerClient, 'getSecretValue').mockResolvedValue({
             webhook_url: 'https://hooks.slack.com/services/test/webhook/url',
         });
@@ -155,7 +160,7 @@ describe('Reply Handler', () => {
             expect(JSON.parse(result.body)).toEqual({
                 error: 'Invalid request parameters',
                 details: expect.any(Array),
-                allowedActions: ['confirm-lunch'],
+                allowedActions: ['confirm-lunch', 'opt-in-warnings', 'opt-out-warnings'],
             });
         });
     });
