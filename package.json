@@ -1,7 +1,7 @@
 {
     "name": "lunch-slack-bot",
     "version": "1.0.0",
-    "description": "Serverless Slack bot for outdoor lunch meetup reminders based on weather conditions",
+    "description": "🌤️ Smart serverless Slack bot that automatically sends weather-based lunch meetup reminders. Features automatic weather monitoring, rate limiting, reply API for confirmations, and secure AWS deployment with OpenTofu.",
     "main": "dist/index.js",
     "scripts": {
         "build:dev": "npm run clean && npm run build:weather-check -- --watch & npm run build:reply -- --watch",
@@ -25,13 +25,27 @@
         "test": "vitest run"
     },
     "keywords": [
-        "slack",
-        "bot",
-        "weather",
-        "lunch",
-        "serverless",
+        "api-gateway",
+        "automation",
         "aws",
-        "lambda"
+        "bot",
+        "dynamodb",
+        "eventbridge",
+        "lambda",
+        "lunch",
+        "notifications",
+        "openmeteo",
+        "opentofu",
+        "outdoor-activities",
+        "secrets-manager",
+        "serverless",
+        "slack",
+        "team-coordination",
+        "terraform",
+        "typescript",
+        "weather-api",
+        "weather",
+        "webhook"
     ],
     "author": "Luca Becker <hello@luca-becker.me> (https://luca-becker.me/)",
     "license": "GPL-3.0",
