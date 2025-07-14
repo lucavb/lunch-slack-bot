@@ -1,9 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { FetchHttpClient } from './fetch-http-client';
 
-const createMockResponse = (response: unknown, ok: boolean = true, status: number = 200, contentType: string = 'application/json') => {
+const createMockResponse = (
+    response: unknown,
+    ok: boolean = true,
+    status: number = 200,
+    contentType: string = 'application/json',
+) => {
     const responseText = typeof response === 'string' ? response : JSON.stringify(response);
-    
+
     return {
         ok,
         status,
@@ -16,8 +21,8 @@ const createMockResponse = (response: unknown, ok: boolean = true, status: numbe
                     return contentType;
                 }
                 return null;
-            }
-        }
+            },
+        },
     } as Response;
 };
 

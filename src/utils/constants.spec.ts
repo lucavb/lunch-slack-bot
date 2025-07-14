@@ -71,7 +71,7 @@ describe('Constants', () => {
             const message = LUNCH_MESSAGE_TEMPLATE('Munich', 18, 'sunny');
 
             expect(message).not.toContain('click here after your lunch meeting');
-            expect(message).toContain('React with ✅ if you\'re interested');
+            expect(message).toContain("React with ✅ if you're interested");
         });
     });
 
