@@ -2,6 +2,8 @@
 
 A smart serverless weather bot that automatically sends Slack messages when weather conditions are favorable for outdoor lunch meetups. Built with TypeScript, AWS Lambda, and deployed with OpenTofu.
 
+![Lunch Weather Bot](image.jpg)
+
 ## ✨ Features
 
 - **Automatic Weather Monitoring**: Checks weather conditions every weekday at 10 AM CEST
