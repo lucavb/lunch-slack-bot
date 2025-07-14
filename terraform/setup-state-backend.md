@@ -1,6 +1,6 @@
-# Terraform State Backend Setup
+# OpenTofu State Backend Setup
 
-This guide explains how to set up remote state management for your Terraform configuration using S3 and DynamoDB.
+This guide explains how to set up remote state management for your OpenTofu configuration using S3 and DynamoDB.
 
 ## Why Remote State?
 
@@ -22,14 +22,14 @@ Using remote state provides several benefits:
 
     ```bash
     cd terraform
-    terraform init
-    terraform plan
-    terraform apply
+    tofu init
+    tofu plan
+    tofu apply
     ```
 
 3. **Note the output values** - you'll need these for the backend configuration:
-    - `terraform_state_bucket`
-    - `terraform_locks_table`
+    - `tofu_state_bucket`
+    - `tofu_locks_table`
     - `backend_configuration` (shows the exact configuration to use)
 
 ### Step 2: Configure Remote Backend
@@ -41,10 +41,10 @@ Using remote state provides several benefits:
       required_version = ">= 1.0"
 
       backend "s3" {
-        bucket         = "lunch-weather-bot-terraform-state-<random-suffix>"
+        bucket         = "lunch-weather-bot-tofu-state-<random-suffix>"
         key            = "terraform.tfstate"
         region         = "eu-central-1"
-        dynamodb_table = "lunch-weather-bot-terraform-locks"
+        dynamodb_table = "lunch-weather-bot-tofu-locks"
         encrypt        = true
       }
 
@@ -61,10 +61,10 @@ Using remote state provides several benefits:
     }
     ```
 
-2. **Reinitialize Terraform** to use the remote backend:
+2. **Reinitialize OpenTofu** to use the remote backend:
 
     ```bash
-    terraform init
+    tofu init
     ```
 
     When prompted, choose "yes" to copy existing state to the new backend.
@@ -72,7 +72,7 @@ Using remote state provides several benefits:
 3. **Verify the migration**:
 
     ```bash
-    terraform plan
+    tofu plan
     ```
 
     This should show no changes if the migration was successful.
@@ -85,7 +85,7 @@ You can now remove the `state-backend.tf` file if you want:
 rm state-backend.tf
 ```
 
-And run `terraform apply` to remove the state backend resources from your local state (they'll remain in the remote state).
+And run `tofu apply` to remove the state backend resources from your local state (they'll remain in the remote state).
 
 ## Team Setup
 
@@ -93,14 +93,14 @@ For new team members:
 
 1. **Clone the repository**
 2. **Set up AWS credentials**
-3. **Initialize Terraform**:
+3. **Initialize OpenTofu**:
 
     ```bash
     cd terraform
-    terraform init
+    tofu init
     ```
 
-    Terraform will automatically use the remote state backend.
+    OpenTofu will automatically use the remote state backend.
 
 ## Important Notes
 
@@ -116,7 +116,7 @@ For new team members:
 If you encounter a state lock error:
 
 ```bash
-terraform force-unlock <lock-id>
+tofu force-unlock <lock-id>
 ```
 
 ### Migration Issues
@@ -124,8 +124,8 @@ terraform force-unlock <lock-id>
 If state migration fails, you can manually import the state:
 
 ```bash
-terraform import aws_s3_bucket.terraform_state <bucket-name>
-terraform import aws_dynamodb_table.terraform_locks <table-name>
+tofu import aws_s3_bucket.tofu_state <bucket-name>
+tofu import aws_dynamodb_table.tofu_locks <table-name>
 ```
 
 ## Security Considerations

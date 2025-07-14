@@ -1,6 +1,6 @@
 # 🌤️ Lunch Weather Bot
 
-A simple serverless weather bot that automatically sends Slack messages when weather conditions are favorable for outdoor lunch meetups. Built with TypeScript, AWS Lambda, and deployed with Terraform.
+A simple serverless weather bot that automatically sends Slack messages when weather conditions are favorable for outdoor lunch meetups. Built with TypeScript, AWS Lambda, and deployed with OpenTofu.
 
 ## ✨ Features
 
@@ -39,7 +39,7 @@ A simple serverless weather bot that automatically sends Slack messages when wea
 
 - Node.js 22.x or higher
 - AWS CLI configured with appropriate permissions
-- Terraform >= 1.0
+- OpenTofu >= 1.0
 - A Slack workspace with webhook URL
 
 ### 1. Clone and Install
@@ -127,9 +127,9 @@ npm run build
 
 # Deploy to AWS (from terraform directory)
 cd terraform
-terraform init
-terraform plan
-terraform apply
+tofu init
+tofu plan
+tofu apply
 ```
 
 ### 4. Multiple Deployments (Optional)
@@ -138,11 +138,11 @@ terraform apply
 
 ```bash
 # For each team, run the setup script in a new workspace
-terraform workspace new team-alpha
+tofu workspace new team-alpha
 ./setup-bot.sh
 # Script will prompt for team-specific settings
 
-terraform workspace new team-beta
+tofu workspace new team-beta
 ./setup-bot.sh
 # Configure for team beta
 ```
@@ -152,16 +152,16 @@ terraform workspace new team-beta
 ```bash
 # Deploy for Team Alpha
 echo 'deployment_suffix = "team-alpha"' >> terraform.tfvars
-terraform apply
+tofu apply
 
 # Deploy for Team Beta (using different workspace)
-terraform workspace new team-beta
+tofu workspace new team-beta
 echo 'deployment_suffix = "team-beta"' > terraform.tfvars
 echo 'slack_webhook_url = "https://hooks.slack.com/services/T123/B789/team-beta"' >> terraform.tfvars
-terraform apply
+tofu apply
 
 # Switch back to default workspace
-terraform workspace select default
+tofu workspace select default
 ```
 
 ## 🔄 Reply API - Team Interaction
@@ -170,7 +170,7 @@ The bot provides a Reply API endpoint that allows team members to interact with 
 
 ### API Endpoint
 
-After deployment, Terraform outputs the API URL:
+After deployment, OpenTofu outputs the API URL:
 
 ```
 https://[api-id].execute-api.[region].amazonaws.com/prod/reply
@@ -265,7 +265,7 @@ Default schedule: Weekdays at 10 AM CEST (8 AM UTC)
 
 Modify in `terraform/main.tf`:
 
-```terraform
+```hcl
 resource "aws_cloudwatch_event_rule" "weather_check_schedule" {
   schedule_expression = "cron(0 8 ? * MON-FRI *)"
 }
@@ -393,7 +393,7 @@ cp terraform.tfvars.example terraform.tfvars
 
 ```bash
 export TF_VAR_slack_webhook_url="https://hooks.slack.com/services/..."
-terraform plan
+tofu plan
 ```
 
 ### Production (AWS Secrets Manager)
@@ -410,12 +410,12 @@ Each team should have their own `terraform.tfvars` file:
 
 ```bash
 # Team Alpha
-terraform workspace new team-alpha
+tofu workspace new team-alpha
 echo 'deployment_suffix = "team-alpha"' > terraform.tfvars
 echo 'slack_webhook_url = "https://hooks.slack.com/services/T123/B456/alpha"' >> terraform.tfvars
 
 # Team Beta
-terraform workspace new team-beta
+tofu workspace new team-beta
 echo 'deployment_suffix = "team-beta"' > terraform.tfvars
 echo 'slack_webhook_url = "https://hooks.slack.com/services/T123/B789/beta"' >> terraform.tfvars
 ```
@@ -484,7 +484,7 @@ terraform/             # Infrastructure as Code
 | `AWS_REGION`          | AWS region          | eu-central-1   |
 | `DYNAMODB_TABLE_NAME` | DynamoDB table name | Auto-generated |
 
-## 🔧 Terraform Variables
+## 🔧 OpenTofu Variables
 
 | Variable             | Description                                  | Default      |
 | -------------------- | -------------------------------------------- | ------------ |

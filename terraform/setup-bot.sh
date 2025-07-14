@@ -2,7 +2,7 @@
 
 # Lunch Weather Bot Complete Setup Script
 # This script automates the setup of:
-# 1. Terraform remote state backend
+# 1. OpenTofu remote state backend
 # 2. Configuration file (terraform.tfvars)
 # 3. Deployment process
 # 4. Instructions for setting up the Slack webhook secret
@@ -136,16 +136,16 @@ fi
 
 # Step 2: Deploy state backend infrastructure
 echo "📦 Step 2: Deploying state backend infrastructure..."
-terraform init
-terraform plan -out=backend.tfplan
-terraform apply backend.tfplan
+tofu init
+tofu plan -out=backend.tfplan
+tofu apply backend.tfplan
 rm backend.tfplan
 
 # Step 3: Capture output values
 echo "📝 Step 3: Capturing backend configuration..."
-BUCKET_NAME=$(terraform output -raw terraform_state_bucket)
-LOCKS_TABLE=$(terraform output -raw terraform_locks_table)
-AWS_REGION=$(terraform output -raw aws_region 2>/dev/null || echo "eu-central-1")
+BUCKET_NAME=$(tofu output -raw tofu_state_bucket)
+LOCKS_TABLE=$(tofu output -raw tofu_locks_table)
+AWS_REGION=$(tofu output -raw aws_region 2>/dev/null || echo "eu-central-1")
 
 echo "✅ State backend infrastructure created:"
 echo "   S3 Bucket: $BUCKET_NAME"
@@ -182,8 +182,8 @@ else
 fi
 
 # Step 6: Reinitialize with remote backend
-echo "🔄 Step 6: Reinitializing Terraform with remote backend..."
-terraform init -migrate-state
+echo "🔄 Step 6: Reinitializing OpenTofu with remote backend..."
+tofu init -migrate-state
 
 # Step 7: Build the application
 echo "🏗️  Step 7: Building the application..."
@@ -199,14 +199,14 @@ cd terraform
 
 # Step 8: Deploy the weather bot
 echo "🚀 Step 8: Deploying the weather bot..."
-terraform plan
+tofu plan
 echo ""
 if prompt_yes_no "Do you want to deploy the weather bot now?" "y"; then
-    terraform apply
+    tofu apply
     echo ""
     echo "🎉 Weather bot deployed successfully!"
 else
-    echo "⏸️  Deployment skipped. Run 'terraform apply' when ready."
+    echo "⏸️  Deployment skipped. Run 'tofu apply' when ready."
 fi
 
 # Step 9: Set up Slack webhook secret
@@ -261,7 +261,7 @@ fi
 
 # Step 10: Verify setup
 echo "✅ Step 10: Verifying setup..."
-terraform plan | head -20
+tofu plan | head -20
 
 # Cleanup
 rm -f backend-config.tmp
@@ -282,8 +282,8 @@ echo "   DynamoDB Table: $LOCKS_TABLE"
 echo "   Region: $AWS_REGION"
 echo ""
 echo "🤖 Bot Details:"
-FUNCTION_NAME=$(terraform output -raw weather_check_function_name 2>/dev/null || echo "lunch-weather-bot-weather-check")
-LOG_GROUP=$(terraform output -raw weather_check_log_group 2>/dev/null || echo "/aws/lambda/lunch-weather-bot-weather-check")
+FUNCTION_NAME=$(tofu output -raw weather_check_function_name 2>/dev/null || echo "lunch-weather-bot-weather-check")
+LOG_GROUP=$(tofu output -raw weather_check_log_group 2>/dev/null || echo "/aws/lambda/lunch-weather-bot-weather-check")
 echo "   Lambda Function: $FUNCTION_NAME"
 echo "   Log Group: $LOG_GROUP"
 echo "   Schedule: Weekdays at 10 AM CEST"
@@ -299,9 +299,9 @@ echo ""
 echo "👥 Team Setup:"
 echo "   1. Commit the changes to main.tf (but NOT terraform.tfvars)"
 echo "   2. Share the backend configuration with your team"
-echo "   3. Team members run: terraform init"
+echo "   3. Team members run: tofu init"
 echo "   4. Each team member creates their own terraform.tfvars"
 echo "   5. One team member sets up the Slack webhook secret"
 echo ""
 echo "🔧 For multiple deployments:"
-echo "   Use terraform workspaces and different deployment_suffix values" 
+echo "   Use tofu workspaces and different deployment_suffix values" 

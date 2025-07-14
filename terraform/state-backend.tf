@@ -1,12 +1,12 @@
-# This file creates the infrastructure needed for Terraform state management
+# This file creates the infrastructure needed for OpenTofu state management
 # Run this FIRST before configuring the backend in main.tf
 
-# S3 bucket for Terraform state
-resource "aws_s3_bucket" "terraform_state" {
-  bucket = "${var.project_name}-terraform-state-${random_id.bucket_suffix.hex}"
+# S3 bucket for OpenTofu state
+resource "aws_s3_bucket" "tofu_state" {
+  bucket = "${var.project_name}-tofu-state-${random_id.bucket_suffix.hex}"
 
   tags = {
-    Name        = "Terraform State"
+    Name        = "OpenTofu State"
     Environment = var.environment
     Project     = var.project_name
   }
@@ -18,16 +18,16 @@ resource "random_id" "bucket_suffix" {
 }
 
 # S3 bucket versioning
-resource "aws_s3_bucket_versioning" "terraform_state" {
-  bucket = aws_s3_bucket.terraform_state.id
+resource "aws_s3_bucket_versioning" "tofu_state" {
+  bucket = aws_s3_bucket.tofu_state.id
   versioning_configuration {
     status = "Enabled"
   }
 }
 
 # S3 bucket encryption
-resource "aws_s3_bucket_server_side_encryption_configuration" "terraform_state" {
-  bucket = aws_s3_bucket.terraform_state.id
+resource "aws_s3_bucket_server_side_encryption_configuration" "tofu_state" {
+  bucket = aws_s3_bucket.tofu_state.id
 
   rule {
     apply_server_side_encryption_by_default {
@@ -37,8 +37,8 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "terraform_state" 
 }
 
 # S3 bucket public access block
-resource "aws_s3_bucket_public_access_block" "terraform_state" {
-  bucket = aws_s3_bucket.terraform_state.id
+resource "aws_s3_bucket_public_access_block" "tofu_state" {
+  bucket = aws_s3_bucket.tofu_state.id
 
   block_public_acls       = true
   block_public_policy     = true
@@ -47,8 +47,8 @@ resource "aws_s3_bucket_public_access_block" "terraform_state" {
 }
 
 # DynamoDB table for state locking
-resource "aws_dynamodb_table" "terraform_locks" {
-  name         = "${var.project_name}-terraform-locks"
+resource "aws_dynamodb_table" "tofu_locks" {
+  name         = "${var.project_name}-tofu-locks"
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "LockID"
 
@@ -58,21 +58,21 @@ resource "aws_dynamodb_table" "terraform_locks" {
   }
 
   tags = {
-    Name        = "Terraform State Locks"
+    Name        = "OpenTofu State Locks"
     Environment = var.environment
     Project     = var.project_name
   }
 }
 
 # Output the backend configuration for reference
-output "terraform_state_bucket" {
-  description = "Name of the S3 bucket for Terraform state"
-  value       = aws_s3_bucket.terraform_state.id
+output "tofu_state_bucket" {
+  description = "Name of the S3 bucket for OpenTofu state"
+  value       = aws_s3_bucket.tofu_state.id
 }
 
-output "terraform_locks_table" {
-  description = "Name of the DynamoDB table for Terraform state locking"
-  value       = aws_dynamodb_table.terraform_locks.name
+output "tofu_locks_table" {
+  description = "Name of the DynamoDB table for OpenTofu state locking"
+  value       = aws_dynamodb_table.tofu_locks.name
 }
 
 output "backend_configuration" {
@@ -81,10 +81,10 @@ output "backend_configuration" {
 # Add this to your terraform block in main.tf:
 terraform {
   backend "s3" {
-    bucket         = "${aws_s3_bucket.terraform_state.id}"
+    bucket         = "${aws_s3_bucket.tofu_state.id}"
     key            = "terraform.tfstate"
     region         = "${var.aws_region}"
-    dynamodb_table = "${aws_dynamodb_table.terraform_locks.name}"
+    dynamodb_table = "${aws_dynamodb_table.tofu_locks.name}"
     encrypt        = true
   }
 }

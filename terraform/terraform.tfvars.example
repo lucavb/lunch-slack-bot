@@ -1,4 +1,4 @@
-# Terraform Variables Template
+# OpenTofu Variables Template
 # Copy this file to terraform.tfvars and fill in your actual values
 # terraform.tfvars is excluded from git to protect secrets
 

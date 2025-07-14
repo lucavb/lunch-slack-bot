@@ -82,6 +82,6 @@ variable "tags" {
   type        = map(string)
   default = {
     Project   = "lunch-weather-bot"
-    ManagedBy = "terraform"
+    ManagedBy = "opentofu"
   }
 } 
