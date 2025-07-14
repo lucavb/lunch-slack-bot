@@ -82,45 +82,48 @@ The script will guide you through:
 If you prefer manual setup:
 
 1. **Configure OpenTofu variables:**
-   ```bash
-   cd terraform
-   cp terraform.tfvars.example terraform.tfvars
-   # Edit terraform.tfvars with your configuration
-   ```
+
+    ```bash
+    cd terraform
+    cp terraform.tfvars.example terraform.tfvars
+    # Edit terraform.tfvars with your configuration
+    ```
 
 2. **Set up terraform.tfvars:**
-   ```hcl
-   # Location settings
-   location_name = "Munich"
-   location_lat  = 48.1351
-   location_lon  = 11.5820
-   
-   # AWS settings
-   aws_region = "eu-central-1"
-   
-   # Optional: for multiple deployments
-   deployment_suffix = "team-alpha"
-   ```
+
+    ```hcl
+    # Location settings
+    location_name = "Munich"
+    location_lat  = 48.1351
+    location_lon  = 11.5820
+
+    # AWS settings
+    aws_region = "eu-central-1"
+
+    # Optional: for multiple deployments
+    deployment_suffix = "team-alpha"
+    ```
 
 3. **Deploy infrastructure:**
-   ```bash
-   # Build the application (from project root)
-   npm run build
-   
-   # Deploy to AWS (from terraform directory)
-   cd terraform
-   tofu init
-   tofu plan
-   tofu apply
-   ```
+
+    ```bash
+    # Build the application (from project root)
+    npm run build
+
+    # Deploy to AWS (from terraform directory)
+    cd terraform
+    tofu init
+    tofu plan
+    tofu apply
+    ```
 
 4. **Set up Slack webhook secret:**
-   ```bash
-   # After deployment, set the webhook URL in Secrets Manager
-   aws secretsmanager put-secret-value \
-     --secret-id "lunch-bot/slack-webhook" \
-     --secret-string '{"webhook_url": "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"}'
-   ```
+    ```bash
+    # After deployment, set the webhook URL in Secrets Manager
+    aws secretsmanager put-secret-value \
+      --secret-id "lunch-bot/slack-webhook" \
+      --secret-string '{"webhook_url": "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"}'
+    ```
 
 > ⚠️ **Security Note**: The Slack webhook URL is now stored in AWS Secrets Manager for enhanced security. Never commit webhook URLs to version control!
 
@@ -129,6 +132,7 @@ If you prefer manual setup:
 To deploy multiple instances for different teams or channels:
 
 **Using the setup script (recommended):**
+
 ```bash
 # For each team, create a new workspace
 tofu workspace new team-alpha
@@ -139,6 +143,7 @@ tofu workspace new team-beta
 ```
 
 **Manual approach:**
+
 ```bash
 # Team Alpha configuration
 deployment_suffix = "team-alpha"
@@ -155,6 +160,7 @@ location_lon      = 13.4050
 ```
 
 This creates separate resources for each team:
+
 - Lambda functions: `lunch-weather-bot-team-alpha-weather-check`
 - DynamoDB tables: `lunch-weather-bot-team-alpha-message-tracking`
 - Secrets: `lunch-bot-team-alpha/slack-webhook`
@@ -166,6 +172,7 @@ The bot provides a comprehensive Reply API that allows team members to interact 
 ### API Endpoint
 
 After deployment, OpenTofu outputs the API URL:
+
 ```
 https://[api-id].execute-api.[region].amazonaws.com/prod/reply
 ```
@@ -214,6 +221,7 @@ curl -X POST https://[api-id].execute-api.eu-central-1.amazonaws.com/prod/reply 
 ### API Response Examples
 
 **Lunch Confirmation (New):**
+
 ```json
 {
     "message": "Thanks for confirming! Lunch confirmed for this week. No more weather reminders will be sent.",
@@ -230,6 +238,7 @@ curl -X POST https://[api-id].execute-api.eu-central-1.amazonaws.com/prod/reply 
 ```
 
 **Already Confirmed:**
+
 ```json
 {
     "message": "Lunch already confirmed this week! No more weather reminders will be sent.",
@@ -239,6 +248,7 @@ curl -X POST https://[api-id].execute-api.eu-central-1.amazonaws.com/prod/reply 
 ```
 
 **Weather Warnings Opt-in:**
+
 ```json
 {
     "message": "Successfully opted in to weather warnings. You will now receive notifications when the weather is not suitable for outdoor lunch.",
@@ -249,6 +259,7 @@ curl -X POST https://[api-id].execute-api.eu-central-1.amazonaws.com/prod/reply 
 ```
 
 **Weather Warnings Opt-out:**
+
 ```json
 {
     "message": "Successfully opted out of weather warnings. You will no longer receive notifications about bad weather.",
@@ -261,7 +272,7 @@ curl -X POST https://[api-id].execute-api.eu-central-1.amazonaws.com/prod/reply 
 ### Integration Ideas
 
 - **Slack Slash Command**: Create a Slack app that calls this endpoint
-- **Simple Web Form**: Build a basic HTML form for team members  
+- **Simple Web Form**: Build a basic HTML form for team members
 - **Mobile App**: Integrate into your team's mobile app
 - **Scheduled Call**: Automatically confirm if calendar shows a lunch meeting
 
@@ -270,11 +281,13 @@ curl -X POST https://[api-id].execute-api.eu-central-1.amazonaws.com/prod/reply 
 ### Weather Settings
 
 The bot considers weather "good" when:
+
 - Temperature > 12°C at specified hour (default: noon)
 - Conditions are sunny or partly cloudy
 - No rain, thunderstorms, or snow
 
 **Weather warnings** are sent when:
+
 - Temperature ≤ 12°C OR bad weather conditions
 - Location has opted in to receive warnings
 - Weekly message limits haven't been exceeded
@@ -301,6 +314,7 @@ weatherCheckHour: overrides?.weatherCheckHour ?? 12, // Default to noon
 Default schedule: Weekdays at 10 AM CEST (8 AM UTC)
 
 Modify in `terraform/main.tf`:
+
 ```hcl
 resource "aws_cloudwatch_event_rule" "weather_check_schedule" {
   schedule_expression = "cron(0 8 ? * MON-FRI *)"
@@ -337,6 +351,7 @@ All parameters are optional and fall back to defaults if not provided:
 ### Testing Examples
 
 **Test different location:**
+
 ```json
 {
     "overrides": {
@@ -348,6 +363,7 @@ All parameters are optional and fall back to defaults if not provided:
 ```
 
 **Test with relaxed weather criteria:**
+
 ```json
 {
     "overrides": {
@@ -359,6 +375,7 @@ All parameters are optional and fall back to defaults if not provided:
 ```
 
 **Test for evening weather (6 PM):**
+
 ```json
 {
     "overrides": {
@@ -368,6 +385,7 @@ All parameters are optional and fall back to defaults if not provided:
 ```
 
 **Use all defaults:**
+
 ```json
 {}
 ```
@@ -401,6 +419,7 @@ The webhook URL is stored in AWS Secrets Manager with the following structure:
 ```
 
 **Setting the secret:**
+
 ```bash
 aws secretsmanager put-secret-value \
   --secret-id "lunch-bot/slack-webhook" \
@@ -408,13 +427,14 @@ aws secretsmanager put-secret-value \
 ```
 
 **For multiple teams:**
+
 ```bash
 # Team Alpha
 aws secretsmanager put-secret-value \
   --secret-id "lunch-bot-team-alpha/slack-webhook" \
   --secret-string '{"webhook_url": "https://hooks.slack.com/services/T123/B456/alpha"}'
 
-# Team Beta  
+# Team Beta
 aws secretsmanager put-secret-value \
   --secret-id "lunch-bot-team-beta/slack-webhook" \
   --secret-string '{"webhook_url": "https://hooks.slack.com/services/T123/B789/beta"}'
@@ -423,22 +443,27 @@ aws secretsmanager put-secret-value \
 ## 📊 Monitoring & Observability
 
 ### CloudWatch Logs
+
 - **Weather Check**: `/aws/lambda/lunch-weather-bot-weather-check`
 - **Reply API**: `/aws/lambda/lunch-weather-bot-reply`
 
 ### DynamoDB Tables
+
 - **Message Tracking**: `lunch-weather-bot-message-tracking`
 - **Stores**: Message history, lunch confirmations, weather warning preferences
 
 ### EventBridge
+
 - **Rule**: `lunch-weather-bot-schedule`
 - **Target**: Weather check Lambda function
 
 ### API Gateway
+
 - **Name**: `lunch-weather-bot-api`
 - **Endpoint**: `/reply` (POST, GET, OPTIONS)
 
 ### Key Metrics to Monitor
+
 - Lambda execution duration and errors
 - DynamoDB read/write capacity utilization
 - API Gateway request count and latency
@@ -516,29 +541,29 @@ terraform/                       # Infrastructure as Code
 
 ## 🌍 Environment Variables
 
-| Variable                    | Description                | Default      |
-| --------------------------- | -------------------------- | ------------ |
-| `SLACK_WEBHOOK_SECRET_ARN`  | Secrets Manager ARN        | Auto-set     |
-| `LOCATION_NAME`             | Location name              | Munich       |
-| `LOCATION_LAT`              | Latitude                   | 48.1351      |
-| `LOCATION_LON`              | Longitude                  | 11.5820      |
-| `AWS_REGION`                | AWS region                 | eu-central-1 |
-| `DYNAMODB_TABLE_NAME`       | DynamoDB table name        | Auto-set     |
-| `REPLY_API_URL`             | Reply API endpoint URL     | Auto-set     |
+| Variable                   | Description            | Default      |
+| -------------------------- | ---------------------- | ------------ |
+| `SLACK_WEBHOOK_SECRET_ARN` | Secrets Manager ARN    | Auto-set     |
+| `LOCATION_NAME`            | Location name          | Munich       |
+| `LOCATION_LAT`             | Latitude               | 48.1351      |
+| `LOCATION_LON`             | Longitude              | 11.5820      |
+| `AWS_REGION`               | AWS region             | eu-central-1 |
+| `DYNAMODB_TABLE_NAME`      | DynamoDB table name    | Auto-set     |
+| `REPLY_API_URL`            | Reply API endpoint URL | Auto-set     |
 
 ## 🔧 OpenTofu Variables
 
-| Variable               | Description                              | Default      |
-| ---------------------- | ---------------------------------------- | ------------ |
-| `location_name`        | Location name for weather checks         | Munich       |
-| `location_lat`         | Latitude coordinate                      | 48.1351      |
-| `location_lon`         | Longitude coordinate                     | 11.5820      |
-| `aws_region`           | AWS region for deployment                | eu-central-1 |
-| `deployment_suffix`    | Suffix for resource names                | "" (empty)   |
-| `environment`          | Environment name                         | prod         |
-| `lambda_timeout`       | Lambda timeout in seconds                | 60           |
-| `lambda_memory`        | Lambda memory in MB                      | 256          |
-| `log_retention_days`   | CloudWatch log retention                 | 14           |
+| Variable             | Description                      | Default      |
+| -------------------- | -------------------------------- | ------------ |
+| `location_name`      | Location name for weather checks | Munich       |
+| `location_lat`       | Latitude coordinate              | 48.1351      |
+| `location_lon`       | Longitude coordinate             | 11.5820      |
+| `aws_region`         | AWS region for deployment        | eu-central-1 |
+| `deployment_suffix`  | Suffix for resource names        | "" (empty)   |
+| `environment`        | Environment name                 | prod         |
+| `lambda_timeout`     | Lambda timeout in seconds        | 60           |
+| `lambda_memory`      | Lambda memory in MB              | 256          |
+| `log_retention_days` | CloudWatch log retention         | 14           |
 
 ## 📝 License
 
