@@ -4,6 +4,7 @@ export default defineConfig({
     test: {
         globals: true,
         environment: 'node',
+        silent: true,
         include: ['**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts}'],
         exclude: ['node_modules', 'dist', 'terraform', '*.config.*'],
         coverage: {
