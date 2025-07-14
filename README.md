@@ -1,15 +1,17 @@
 # 🌤️ Lunch Weather Bot
 
-A simple serverless weather bot that automatically sends Slack messages when weather conditions are favorable for outdoor lunch meetups. Built with TypeScript, AWS Lambda, and deployed with OpenTofu.
+A smart serverless weather bot that automatically sends Slack messages when weather conditions are favorable for outdoor lunch meetups. Built with TypeScript, AWS Lambda, and deployed with OpenTofu.
 
 ## ✨ Features
 
 - **Automatic Weather Monitoring**: Checks weather conditions every weekday at 10 AM CEST
 - **Smart Weather Logic**: Only sends messages when weather is good (>12°C, sunny/cloudy)
-- **Rate Limiting**: Maximum 2 messages per week (tracked in DynamoDB)
-- **Reply API Endpoint**: Team members can confirm lunch meetings to stop further messages
+- **Weather Warnings**: Optional notifications when weather is poor (opt-in feature)
+- **Rate Limiting**: Maximum 2 messages per week per message type (tracked in DynamoDB)
+- **Reply API Endpoint**: Team members can confirm lunch meetings and manage notification preferences
 - **Manual Testing**: Trigger from AWS Console with customizable parameters
-- **Webhook Integration**: Sends messages directly to Slack webhook URL
+- **Secure Storage**: Webhook URL stored in AWS Secrets Manager for security
+- **Multiple Teams**: Support for multiple deployments with different configurations
 
 ## 🏗️ Architecture
 
@@ -23,13 +25,20 @@ A simple serverless weather bot that automatically sends Slack messages when wea
                        ┌─────────────────┐
                        │    DynamoDB     │    ┌─────────────────┐
                        │ (Message Store) │◀───│ Team Members    │
-                       └─────────────────┘    │ (Reply API)     │
-                                ▲             └─────────────────┘
-                                │                      │
-                       ┌─────────────────┐             ▼
-                       │  Reply Lambda   │    ┌─────────────────┐
-                       │   (Confirm)     │◀───│  API Gateway    │
+                       │ + Preferences   │    │ (Reply API)     │
+                       └─────────────────┘    └─────────────────┘
+                                ▲                      │
+                                │                      ▼
+                       ┌─────────────────┐             │
+                       │  Reply Lambda   │◀────────────┘
+                       │  (Confirm +     │    ┌─────────────────┐
+                       │   Preferences)  │◀───│  API Gateway    │
                        └─────────────────┘    │   (/reply)      │
+                                              └─────────────────┘
+                                                       │
+                                              ┌─────────────────┐
+                                              │ Secrets Manager │
+                                              │ (Webhook URL)   │
                                               └─────────────────┘
 ```
 
@@ -62,123 +71,110 @@ chmod +x setup-bot.sh
 
 The script will guide you through:
 
-- ✅ Creating `terraform.tfvars` with your webhook URL
+- ✅ Creating `terraform.tfvars` with your configuration
 - ✅ Setting up remote state backend (S3 + DynamoDB)
 - ✅ Building and deploying the application
+- ✅ Creating AWS Secrets Manager secret for webhook URL
 - ✅ Providing testing instructions
 
 ### 2b. Manual Configuration (Alternative)
 
-If you prefer manual setup, create `terraform/terraform.tfvars`:
+If you prefer manual setup:
 
+1. **Configure OpenTofu variables:**
+   ```bash
+   cd terraform
+   cp terraform.tfvars.example terraform.tfvars
+   # Edit terraform.tfvars with your configuration
+   ```
+
+2. **Set up terraform.tfvars:**
+   ```hcl
+   # Location settings
+   location_name = "Munich"
+   location_lat  = 48.1351
+   location_lon  = 11.5820
+   
+   # AWS settings
+   aws_region = "eu-central-1"
+   
+   # Optional: for multiple deployments
+   deployment_suffix = "team-alpha"
+   ```
+
+3. **Deploy infrastructure:**
+   ```bash
+   # Build the application (from project root)
+   npm run build
+   
+   # Deploy to AWS (from terraform directory)
+   cd terraform
+   tofu init
+   tofu plan
+   tofu apply
+   ```
+
+4. **Set up Slack webhook secret:**
+   ```bash
+   # After deployment, set the webhook URL in Secrets Manager
+   aws secretsmanager put-secret-value \
+     --secret-id "lunch-bot/slack-webhook" \
+     --secret-string '{"webhook_url": "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"}'
+   ```
+
+> ⚠️ **Security Note**: The Slack webhook URL is now stored in AWS Secrets Manager for enhanced security. Never commit webhook URLs to version control!
+
+### 3. Multiple Teams/Deployments
+
+To deploy multiple instances for different teams or channels:
+
+**Using the setup script (recommended):**
 ```bash
-cd terraform
-cp terraform.tfvars.example terraform.tfvars
-# Edit terraform.tfvars with your actual webhook URL
-```
-
-```hcl
-slack_webhook_url = "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
-location_name     = "Munich"
-location_lat      = 48.1351
-location_lon      = 11.5820
-aws_region        = "eu-central-1"
-deployment_suffix = "team-alpha"  # Optional: for multiple deployments
-```
-
-> ⚠️ **Security Note**: `terraform.tfvars` is excluded from git to protect your webhook URL. Never commit secrets to version control!
-
-#### Multiple Deployments / Slack Channels
-
-To deploy multiple instances for different teams or channels, use the `deployment_suffix`:
-
-**Team Alpha:**
-
-```hcl
-slack_webhook_url = "https://hooks.slack.com/services/T123/B456/team-alpha"
-deployment_suffix = "team-alpha"
-location_name     = "Munich"
-```
-
-**Team Beta:**
-
-```hcl
-slack_webhook_url = "https://hooks.slack.com/services/T123/B789/team-beta"
-deployment_suffix = "team-beta"
-location_name     = "Berlin"
-```
-
-This creates separate resources:
-
-- `lunch-weather-bot-team-alpha-weather-check` (Lambda)
-- `lunch-weather-bot-team-alpha-message-tracking` (DynamoDB)
-- `lunch-weather-bot-team-beta-weather-check` (Lambda)
-- `lunch-weather-bot-team-beta-message-tracking` (DynamoDB)
-
-### 3. Build and Deploy
-
-**If you used the setup script:** You're done! 🎉
-
-**If you configured manually:**
-
-```bash
-# Build the application (from project root)
-npm run build
-
-# Deploy to AWS (from terraform directory)
-cd terraform
-tofu init
-tofu plan
-tofu apply
-```
-
-### 4. Multiple Deployments (Optional)
-
-**Using the setup script:**
-
-```bash
-# For each team, run the setup script in a new workspace
+# For each team, create a new workspace
 tofu workspace new team-alpha
-./setup-bot.sh
-# Script will prompt for team-specific settings
+./setup-bot.sh  # Script will prompt for team-specific settings
 
 tofu workspace new team-beta
-./setup-bot.sh
-# Configure for team beta
+./setup-bot.sh  # Configure for team beta
 ```
 
 **Manual approach:**
-
 ```bash
-# Deploy for Team Alpha
-echo 'deployment_suffix = "team-alpha"' >> terraform.tfvars
-tofu apply
+# Team Alpha configuration
+deployment_suffix = "team-alpha"
+location_name     = "Munich"
+location_lat      = 48.1351
+location_lon      = 11.5820
 
-# Deploy for Team Beta (using different workspace)
+# Team Beta configuration (different workspace)
 tofu workspace new team-beta
-echo 'deployment_suffix = "team-beta"' > terraform.tfvars
-echo 'slack_webhook_url = "https://hooks.slack.com/services/T123/B789/team-beta"' >> terraform.tfvars
-tofu apply
-
-# Switch back to default workspace
-tofu workspace select default
+deployment_suffix = "team-beta"
+location_name     = "Berlin"
+location_lat      = 52.5200
+location_lon      = 13.4050
 ```
+
+This creates separate resources for each team:
+- Lambda functions: `lunch-weather-bot-team-alpha-weather-check`
+- DynamoDB tables: `lunch-weather-bot-team-alpha-message-tracking`
+- Secrets: `lunch-bot-team-alpha/slack-webhook`
 
 ## 🔄 Reply API - Team Interaction
 
-The bot provides a Reply API endpoint that allows team members to interact with the system. Currently, it supports confirming lunch meetings to prevent further weather messages for the week.
+The bot provides a comprehensive Reply API that allows team members to interact with the system and manage their notification preferences.
 
 ### API Endpoint
 
 After deployment, OpenTofu outputs the API URL:
-
 ```
 https://[api-id].execute-api.[region].amazonaws.com/prod/reply
 ```
 
-### Confirm Lunch Meeting
+### Available Actions
 
-When your team has confirmed they're meeting for lunch, anyone can call this endpoint to stop further weather messages for the current week:
+#### 1. Confirm Lunch Meeting
+
+Confirm that your team is meeting for lunch, which stops further weather reminders for the current week:
 
 ```bash
 # Basic lunch confirmation
@@ -190,60 +186,100 @@ curl -X POST https://[api-id].execute-api.eu-central-1.amazonaws.com/prod/reply 
 curl -X POST https://[api-id].execute-api.eu-central-1.amazonaws.com/prod/reply \
   -H "Content-Type: application/json" \
   -d '{"action": "confirm-lunch", "location": "Berlin"}'
+
+# GET request alternative
+curl "https://[api-id].execute-api.eu-central-1.amazonaws.com/prod/reply?action=confirm-lunch&location=Munich"
 ```
 
-### Response Format
+#### 2. Opt-in to Weather Warnings
 
-**Success Response:**
+Receive notifications when the weather is poor for outdoor lunch:
 
+```bash
+curl -X POST https://[api-id].execute-api.eu-central-1.amazonaws.com/prod/reply \
+  -H "Content-Type: application/json" \
+  -d '{"action": "opt-in-warnings", "location": "Munich"}'
+```
+
+#### 3. Opt-out of Weather Warnings
+
+Stop receiving bad weather notifications:
+
+```bash
+curl -X POST https://[api-id].execute-api.eu-central-1.amazonaws.com/prod/reply \
+  -H "Content-Type: application/json" \
+  -d '{"action": "opt-out-warnings", "location": "Munich"}'
+```
+
+### API Response Examples
+
+**Lunch Confirmation (New):**
 ```json
 {
+    "message": "Thanks for confirming! Lunch confirmed for this week. No more weather reminders will be sent.",
     "action": "confirm-lunch",
-    "message": "Lunch confirmation recorded successfully",
     "location": "Munich",
     "confirmed": true,
-    "timestamp": "2024-01-15T10:30:00.000Z"
+    "config": {
+        "locationName": "Munich",
+        "minTemperature": 12,
+        "awsRegion": "eu-central-1",
+        "slackWebhookUrl": "[REDACTED]"
+    }
 }
 ```
 
 **Already Confirmed:**
-
 ```json
 {
-    "action": "confirm-lunch",
-    "message": "Lunch already confirmed this week",
+    "message": "Lunch already confirmed this week! No more weather reminders will be sent.",
     "location": "Munich",
     "alreadyConfirmed": true
+}
+```
+
+**Weather Warnings Opt-in:**
+```json
+{
+    "message": "Successfully opted in to weather warnings. You will now receive notifications when the weather is not suitable for outdoor lunch.",
+    "action": "opt-in-warnings",
+    "location": "Munich",
+    "optedIn": true
+}
+```
+
+**Weather Warnings Opt-out:**
+```json
+{
+    "message": "Successfully opted out of weather warnings. You will no longer receive notifications about bad weather.",
+    "action": "opt-out-warnings",
+    "location": "Munich",
+    "optedIn": false
 }
 ```
 
 ### Integration Ideas
 
 - **Slack Slash Command**: Create a Slack app that calls this endpoint
-- **Simple Web Form**: Build a basic HTML form for team members
+- **Simple Web Form**: Build a basic HTML form for team members  
 - **Mobile App**: Integrate into your team's mobile app
 - **Scheduled Call**: Automatically confirm if calendar shows a lunch meeting
-
-### Future Actions
-
-The Reply API is designed to be extensible. Future actions might include:
-
-- `set-preferences` - Personal weather preferences
-- `get-status` - Check current week's status
-- `pause-reminders` - Temporarily disable messages
-- `update-location` - Change default location
 
 ## 🔧 Configuration
 
 ### Weather Settings
 
 The bot considers weather "good" when:
-
 - Temperature > 12°C at specified hour (default: noon)
 - Conditions are sunny or partly cloudy
 - No rain, thunderstorms, or snow
 
-These settings can be overridden at runtime through event parameters (see Testing section) or by modifying the defaults in `src/utils/env.ts`:
+**Weather warnings** are sent when:
+- Temperature ≤ 12°C OR bad weather conditions
+- Location has opted in to receive warnings
+- Weekly message limits haven't been exceeded
+
+Override settings at runtime through event parameters or modify defaults in `src/utils/env.ts`:
 
 ```typescript
 // Default weather configuration
@@ -255,16 +291,16 @@ weatherCheckHour: overrides?.weatherCheckHour ?? 12, // Default to noon
 
 ### Rate Limiting
 
-- **Maximum**: 2 messages per week
+- **Weather Reminders**: Maximum 2 per week (when weather is good)
+- **Weather Warnings**: Maximum 2 per week (when weather is poor, opt-in only)
 - **Tracking**: DynamoDB table with automatic cleanup after 30 days
-- **Logic**: Checks both daily and weekly limits before sending
+- **Logic**: Separate limits for each message type and location
 
 ### Scheduling
 
 Default schedule: Weekdays at 10 AM CEST (8 AM UTC)
 
 Modify in `terraform/main.tf`:
-
 ```hcl
 resource "aws_cloudwatch_event_rule" "weather_check_schedule" {
   schedule_expression = "cron(0 8 ? * MON-FRI *)"
@@ -289,7 +325,6 @@ All parameters are optional and fall back to defaults if not provided:
         "locationName": "Berlin",
         "locationLat": 52.52,
         "locationLon": 13.405,
-        "slackWebhookUrl": "https://hooks.slack.com/services/YOUR/WEBHOOK/URL",
         "dynamodbTableName": "my-custom-table",
         "minTemperature": 15,
         "goodWeatherConditions": ["clear", "clouds"],
@@ -299,21 +334,9 @@ All parameters are optional and fall back to defaults if not provided:
 }
 ```
 
-**Parameter descriptions:**
-
-- `locationName` - City name for weather check
-- `locationLat` / `locationLon` - Coordinates for weather check
-- `slackWebhookUrl` - Different Slack webhook URL
-- `dynamodbTableName` - Different DynamoDB table
-- `minTemperature` - Minimum temperature for good weather (°C)
-- `goodWeatherConditions` - Weather conditions considered good
-- `badWeatherConditions` - Weather conditions considered bad
-- `weatherCheckHour` - Hour of day to check weather for (0-23)
-
 ### Testing Examples
 
 **Test different location:**
-
 ```json
 {
     "overrides": {
@@ -325,7 +348,6 @@ All parameters are optional and fall back to defaults if not provided:
 ```
 
 **Test with relaxed weather criteria:**
-
 ```json
 {
     "overrides": {
@@ -337,7 +359,6 @@ All parameters are optional and fall back to defaults if not provided:
 ```
 
 **Test for evening weather (6 PM):**
-
 ```json
 {
     "overrides": {
@@ -346,18 +367,7 @@ All parameters are optional and fall back to defaults if not provided:
 }
 ```
 
-**Test with different webhook:**
-
-```json
-{
-    "overrides": {
-        "slackWebhookUrl": "https://hooks.slack.com/services/T123/B456/xyz"
-    }
-}
-```
-
 **Use all defaults:**
-
 ```json
 {}
 ```
@@ -369,65 +379,70 @@ All parameters are optional and fall back to defaults if not provided:
 3. Go to "Incoming Webhooks" and activate it
 4. Click "Add New Webhook to Workspace"
 5. Choose your channel and copy the webhook URL
-6. Use this URL in your `terraform.tfvars` file
+6. Store the webhook URL in AWS Secrets Manager (see deployment instructions)
 
 ## 🔒 Security & Secrets Management
 
-### Automated Setup (Recommended)
+### Enhanced Security Features
 
-The `setup-bot.sh` script handles all security aspects automatically:
+- **AWS Secrets Manager**: Webhook URL stored securely, not in configuration files
+- **IAM Policies**: Least-privilege access for Lambda functions
+- **Encrypted Storage**: DynamoDB encryption at rest
+- **VPC Support**: Optional VPC deployment for enhanced network security
 
-- Creates `terraform.tfvars` with proper validation
-- Excludes secrets from git (already configured in `.gitignore`)
-- Sets up remote state backend for team collaboration
+### Secrets Management
 
-### Local Development (Manual)
+The webhook URL is stored in AWS Secrets Manager with the following structure:
 
-```bash
-cd terraform
-cp terraform.tfvars.example terraform.tfvars
-# Edit terraform.tfvars with your webhook URL
+```json
+{
+    "webhook_url": "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
+}
 ```
 
-### Environment Variables
-
+**Setting the secret:**
 ```bash
-export TF_VAR_slack_webhook_url="https://hooks.slack.com/services/..."
-tofu plan
+aws secretsmanager put-secret-value \
+  --secret-id "lunch-bot/slack-webhook" \
+  --secret-string '{"webhook_url": "https://hooks.slack.com/services/T123/B456/xyz"}'
 ```
 
-### Production (AWS Secrets Manager)
-
-For production deployments, consider using AWS Secrets Manager:
-
-1. Store webhook URL in AWS Secrets Manager
-2. Uncomment the secrets management code in `terraform/secrets.tf`
-3. Update lambda.tf to use the secret
-
-### Multiple Teams
-
-Each team should have their own `terraform.tfvars` file:
-
+**For multiple teams:**
 ```bash
 # Team Alpha
-tofu workspace new team-alpha
-echo 'deployment_suffix = "team-alpha"' > terraform.tfvars
-echo 'slack_webhook_url = "https://hooks.slack.com/services/T123/B456/alpha"' >> terraform.tfvars
+aws secretsmanager put-secret-value \
+  --secret-id "lunch-bot-team-alpha/slack-webhook" \
+  --secret-string '{"webhook_url": "https://hooks.slack.com/services/T123/B456/alpha"}'
 
-# Team Beta
-tofu workspace new team-beta
-echo 'deployment_suffix = "team-beta"' > terraform.tfvars
-echo 'slack_webhook_url = "https://hooks.slack.com/services/T123/B789/beta"' >> terraform.tfvars
+# Team Beta  
+aws secretsmanager put-secret-value \
+  --secret-id "lunch-bot-team-beta/slack-webhook" \
+  --secret-string '{"webhook_url": "https://hooks.slack.com/services/T123/B789/beta"}'
 ```
 
-## 📊 Monitoring
+## 📊 Monitoring & Observability
 
-- **CloudWatch Logs**:
-    - Weather Check: `/aws/lambda/lunch-weather-bot-weather-check`
-    - Reply API: `/aws/lambda/lunch-weather-bot-reply`
-- **DynamoDB Table**: `lunch-weather-bot-message-tracking`
-- **EventBridge Rule**: `lunch-weather-bot-schedule`
-- **API Gateway**: `lunch-weather-bot-api` (Reply endpoint)
+### CloudWatch Logs
+- **Weather Check**: `/aws/lambda/lunch-weather-bot-weather-check`
+- **Reply API**: `/aws/lambda/lunch-weather-bot-reply`
+
+### DynamoDB Tables
+- **Message Tracking**: `lunch-weather-bot-message-tracking`
+- **Stores**: Message history, lunch confirmations, weather warning preferences
+
+### EventBridge
+- **Rule**: `lunch-weather-bot-schedule`
+- **Target**: Weather check Lambda function
+
+### API Gateway
+- **Name**: `lunch-weather-bot-api`
+- **Endpoint**: `/reply` (POST, GET, OPTIONS)
+
+### Key Metrics to Monitor
+- Lambda execution duration and errors
+- DynamoDB read/write capacity utilization
+- API Gateway request count and latency
+- Weather API call success rate
 
 ## 🛠️ Development
 
@@ -437,67 +452,93 @@ echo 'slack_webhook_url = "https://hooks.slack.com/services/T123/B789/beta"' >> 
 # Install dependencies
 npm install
 
-# Run tests
-npm test
+# Run tests with watch mode
+npm run test:watch
 
 # Run tests with coverage
 npm run test:coverage
 
 # Build for deployment
 npm run build
+
+# Development build with watch mode
+npm run build:dev
+
+# Code quality checks
+npm run cq              # Run all quality checks
+npm run cq:lint         # ESLint
+npm run cq:format       # Prettier
+npm run cq:type-check   # TypeScript
 ```
 
 ### Project Structure
 
 ```
 src/
-├── handlers/           # Lambda function handlers
-│   ├── weather-check.ts    # Main weather checking logic
-│   ├── reply.ts           # Reply API handler (lunch confirmation)
-│   └── *.spec.ts         # Test files
-├── implementations/    # API implementations
-├── interfaces/         # TypeScript interfaces
-├── schemas/           # Zod validation schemas
-├── services/          # Business logic
-├── types/             # TypeScript types
-└── utils/             # Utility functions
+├── handlers/                    # Lambda function handlers
+│   ├── weather-check.ts        # Main weather checking logic
+│   ├── reply.ts                # Reply API handler (lunch + preferences)
+│   └── *.spec.ts               # Test files
+├── implementations/             # Concrete implementations
+│   ├── dynamodb-storage.ts     # DynamoDB operations
+│   ├── webhook-slack.ts        # Slack webhook integration
+│   ├── openmeteo-api.ts        # Weather API client
+│   ├── secrets-manager-client.ts # AWS Secrets Manager client
+│   └── fetch-http-client.ts    # HTTP client implementation
+├── interfaces/                  # TypeScript interfaces
+│   ├── storage.interface.ts    # Storage operations
+│   ├── weather-api.interface.ts # Weather API contract
+│   ├── webhook-slack.interface.ts # Slack webhook contract
+│   └── http-client.interface.ts # HTTP client contract
+├── schemas/                     # Zod validation schemas
+│   ├── weather.schema.ts       # Weather data validation
+│   └── openmeteo.schema.ts     # OpenMeteo API response validation
+├── services/                    # Business logic
+│   └── weather.service.ts      # Weather processing logic
+├── types/                       # TypeScript type definitions
+│   └── index.ts                # Common types
+└── utils/                       # Utility functions
+    ├── env.ts                  # Environment configuration
+    ├── constants.ts            # Application constants
+    └── coordinates.ts          # Location utilities
 
-terraform/             # Infrastructure as Code
-├── main.tf           # Main resources
-├── lambda.tf         # Lambda functions
-├── api-gateway.tf    # API Gateway & Reply endpoint
-├── dynamodb.tf       # DynamoDB table
-├── variables.tf      # Input variables
-├── outputs.tf        # Output values
-├── setup-bot.sh      # Complete setup script
-└── setup-state-backend.md  # Manual backend setup docs
+terraform/                       # Infrastructure as Code
+├── main.tf                     # Main resources
+├── lambda.tf                   # Lambda functions
+├── api-gateway.tf              # API Gateway configuration
+├── dynamodb.tf                 # DynamoDB table
+├── secrets.tf                  # AWS Secrets Manager
+├── variables.tf                # Input variables
+├── outputs.tf                  # Output values
+├── setup-bot.sh                # Complete setup script
+└── setup-state-backend.md      # Manual backend setup docs
 ```
 
 ## 🌍 Environment Variables
 
-| Variable              | Description         | Default        |
-| --------------------- | ------------------- | -------------- |
-| `SLACK_WEBHOOK_URL`   | Slack webhook URL   | Required       |
-| `LOCATION_NAME`       | Location name       | Munich         |
-| `LOCATION_LAT`        | Latitude            | 48.1351        |
-| `LOCATION_LON`        | Longitude           | 11.5820        |
-| `AWS_REGION`          | AWS region          | eu-central-1   |
-| `DYNAMODB_TABLE_NAME` | DynamoDB table name | Auto-generated |
+| Variable                    | Description                | Default      |
+| --------------------------- | -------------------------- | ------------ |
+| `SLACK_WEBHOOK_SECRET_ARN`  | Secrets Manager ARN        | Auto-set     |
+| `LOCATION_NAME`             | Location name              | Munich       |
+| `LOCATION_LAT`              | Latitude                   | 48.1351      |
+| `LOCATION_LON`              | Longitude                  | 11.5820      |
+| `AWS_REGION`                | AWS region                 | eu-central-1 |
+| `DYNAMODB_TABLE_NAME`       | DynamoDB table name        | Auto-set     |
+| `REPLY_API_URL`             | Reply API endpoint URL     | Auto-set     |
 
 ## 🔧 OpenTofu Variables
 
-| Variable             | Description                                  | Default      |
-| -------------------- | -------------------------------------------- | ------------ |
-| `slack_webhook_url`  | Slack webhook URL                            | Required     |
-| `location_name`      | Location name for weather checks             | Munich       |
-| `location_lat`       | Latitude coordinate                          | 48.1351      |
-| `location_lon`       | Longitude coordinate                         | 11.5820      |
-| `aws_region`         | AWS region for deployment                    | eu-central-1 |
-| `deployment_suffix`  | Suffix for resource names (multiple deploys) | "" (empty)   |
-| `environment`        | Environment name                             | prod         |
-| `lambda_timeout`     | Lambda timeout in seconds                    | 60           |
-| `lambda_memory`      | Lambda memory in MB                          | 256          |
-| `log_retention_days` | CloudWatch log retention                     | 14           |
+| Variable               | Description                              | Default      |
+| ---------------------- | ---------------------------------------- | ------------ |
+| `location_name`        | Location name for weather checks         | Munich       |
+| `location_lat`         | Latitude coordinate                      | 48.1351      |
+| `location_lon`         | Longitude coordinate                     | 11.5820      |
+| `aws_region`           | AWS region for deployment                | eu-central-1 |
+| `deployment_suffix`    | Suffix for resource names                | "" (empty)   |
+| `environment`          | Environment name                         | prod         |
+| `lambda_timeout`       | Lambda timeout in seconds                | 60           |
+| `lambda_memory`        | Lambda memory in MB                      | 256          |
+| `log_retention_days`   | CloudWatch log retention                 | 14           |
 
 ## 📝 License
 
