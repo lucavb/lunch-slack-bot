@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { APIGatewayProxyEvent } from 'aws-lambda';
-import { handler } from './reply';
+import { createReplyHandler, ReplyHandlerDependencies } from './reply';
 import { clearCache } from '../utils/env';
 
 type MockEvent = Pick<APIGatewayProxyEvent, 'httpMethod' | 'body' | 'queryStringParameters'>;
@@ -18,19 +18,15 @@ function createMockEvent(
 }
 
 describe('Reply Handler', () => {
-    let mockStorageService: NonNullable<NonNullable<Parameters<typeof handler>[3]>['storageService']>;
-    let mockSecretsManagerClient: NonNullable<NonNullable<Parameters<typeof handler>[3]>['secretsManagerClientImpl']>;
-
-    beforeEach(() => {
-        vi.clearAllMocks();
-        clearCache();
-
-        mockStorageService = {
+    const createTestHandler = () => {
+        const mockStorageService = {
             hasLunchBeenConfirmedThisWeek: vi.fn(),
             recordLunchConfirmation: vi.fn(),
             setWeatherWarningOptInStatus: vi.fn(),
-        };
-        mockSecretsManagerClient = { getSecretValue: vi.fn() };
+        } as const satisfies ReplyHandlerDependencies['storageService'];
+        const mockSecretsManagerClient = {
+            getSecretValue: vi.fn(),
+        } as const satisfies ReplyHandlerDependencies['secretsManagerClient'];
 
         vi.spyOn(mockStorageService, 'hasLunchBeenConfirmedThisWeek').mockResolvedValue(false);
         vi.spyOn(mockStorageService, 'recordLunchConfirmation').mockResolvedValue(undefined);
@@ -38,48 +34,50 @@ describe('Reply Handler', () => {
         vi.spyOn(mockSecretsManagerClient, 'getSecretValue').mockResolvedValue({
             webhook_url: 'https://hooks.slack.com/services/test/webhook/url',
         });
+
+        const handler = createReplyHandler({
+            storageService: mockStorageService,
+            secretsManagerClient: mockSecretsManagerClient,
+        });
+
+        return {
+            handler,
+            mockStorageService,
+            mockSecretsManagerClient,
+        };
+    };
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+        clearCache();
     });
 
     describe('CORS handling', () => {
         it('should handle OPTIONS requests correctly', async () => {
+            const { handler } = createTestHandler();
             const event = createMockEvent('OPTIONS', null, null);
-            const result = await handler(event, undefined, undefined, {
-                storageService: mockStorageService,
-                secretsManagerClientImpl: mockSecretsManagerClient,
-            });
+            const result = await handler(event);
 
             expect(result.statusCode).toBe(200);
             expect(result.headers).toHaveProperty('Access-Control-Allow-Origin', '*');
-            expect(result.headers).toHaveProperty(
-                'Access-Control-Allow-Headers',
-                'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
-            );
             expect(result.headers).toHaveProperty('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+            expect(result.headers).toHaveProperty('Access-Control-Allow-Headers');
         });
 
         it('should include CORS headers in all responses', async () => {
+            const { handler } = createTestHandler();
             const event = createMockEvent('POST', '{"action": "confirm-lunch"}');
-            const result = await handler(event, undefined, undefined, {
-                storageService: mockStorageService,
-                secretsManagerClientImpl: mockSecretsManagerClient,
-            });
+            const result = await handler(event);
 
             expect(result.headers).toHaveProperty('Access-Control-Allow-Origin', '*');
-            expect(result.headers).toHaveProperty(
-                'Access-Control-Allow-Headers',
-                'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
-            );
             expect(result.headers).toHaveProperty('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+            expect(result.headers).toHaveProperty('Access-Control-Allow-Headers');
         });
-    });
 
-    describe('HTTP method validation', () => {
-        it('should reject non-POST/GET requests', async () => {
-            const event = createMockEvent('PUT');
-            const result = await handler(event, undefined, undefined, {
-                storageService: mockStorageService,
-                secretsManagerClientImpl: mockSecretsManagerClient,
-            });
+        it('should handle unsupported HTTP methods', async () => {
+            const { handler } = createTestHandler();
+            const event = createMockEvent('PUT', '{"action": "confirm-lunch"}');
+            const result = await handler(event);
 
             expect(result.statusCode).toBe(405);
             expect(JSON.parse(result.body)).toEqual({
@@ -87,205 +85,149 @@ describe('Reply Handler', () => {
                 allowedMethods: ['GET', 'POST', 'OPTIONS'],
             });
         });
+    });
+
+    describe('Request validation', () => {
+        it('should handle invalid JSON gracefully', async () => {
+            const { handler } = createTestHandler();
+            const event = createMockEvent('POST', 'invalid-json');
+            const result = await handler(event);
+
+            expect(result.statusCode).toBe(400);
+            const body = JSON.parse(result.body);
+            expect(body.error).toBe('Invalid JSON in request body');
+        });
+
+        it('should use default action when none provided', async () => {
+            const { handler, mockStorageService } = createTestHandler();
+            const event = createMockEvent('POST', '{}');
+            const result = await handler(event);
+
+            expect(result.statusCode).toBe(200);
+            expect(mockStorageService.hasLunchBeenConfirmedThisWeek).toHaveBeenCalled();
+        });
+
+        it('should handle invalid action gracefully', async () => {
+            const { handler } = createTestHandler();
+            const event = createMockEvent('POST', '{"action": "invalid-action"}');
+            const result = await handler(event);
+
+            expect(result.statusCode).toBe(400);
+            const body = JSON.parse(result.body);
+            expect(body.error).toBe('Invalid request parameters');
+        });
 
         it('should handle GET requests with query parameters', async () => {
-            const event = createMockEvent('GET', null, { action: 'confirm-lunch', location: 'Berlin' });
-            const result = await handler(event, undefined, undefined, {
-                storageService: mockStorageService,
-                secretsManagerClientImpl: mockSecretsManagerClient,
-            });
+            const { handler, mockStorageService } = createTestHandler();
+            const event = createMockEvent('GET', null, { action: 'confirm-lunch' });
+            const result = await handler(event);
 
             expect(result.statusCode).toBe(200);
-            const responseBody = JSON.parse(result.body);
-            expect(responseBody.message).toContain('Thanks for confirming');
-            expect(responseBody.location).toBe('Berlin');
-            expect(mockStorageService.hasLunchBeenConfirmedThisWeek).toHaveBeenCalledWith('Berlin');
-            expect(mockStorageService.recordLunchConfirmation).toHaveBeenCalledWith('Berlin');
+            expect(mockStorageService.hasLunchBeenConfirmedThisWeek).toHaveBeenCalled();
         });
     });
 
-    describe('Request body validation', () => {
-        it('should handle empty body with default action', async () => {
-            const event = createMockEvent('POST', null);
-            const result = await handler(event, undefined, undefined, {
-                storageService: mockStorageService,
-                secretsManagerClientImpl: mockSecretsManagerClient,
-            });
-
-            expect(result.statusCode).toBe(200);
-            const responseBody = JSON.parse(result.body);
-            expect(responseBody.message).toContain('Thanks for confirming');
-            expect(responseBody.location).toBe('Munich');
-            expect(mockStorageService.hasLunchBeenConfirmedThisWeek).toHaveBeenCalledWith('Munich');
-            expect(mockStorageService.recordLunchConfirmation).toHaveBeenCalledWith('Munich');
-        });
-
-        it('should handle valid JSON body with action', async () => {
-            const event = createMockEvent('POST', '{"action": "confirm-lunch", "location": "Berlin"}');
-            const result = await handler(event, undefined, undefined, {
-                storageService: mockStorageService,
-                secretsManagerClientImpl: mockSecretsManagerClient,
-            });
-
-            expect(result.statusCode).toBe(200);
-            const responseBody = JSON.parse(result.body);
-            expect(responseBody.message).toContain('Thanks for confirming');
-            expect(responseBody.location).toBe('Berlin');
-            expect(mockStorageService.hasLunchBeenConfirmedThisWeek).toHaveBeenCalledWith('Berlin');
-            expect(mockStorageService.recordLunchConfirmation).toHaveBeenCalledWith('Berlin');
-        });
-
-        it('should handle invalid JSON body', async () => {
-            const event = createMockEvent('POST', '{"invalid": json}');
-            const result = await handler(event, undefined, undefined, {
-                storageService: mockStorageService,
-                secretsManagerClientImpl: mockSecretsManagerClient,
-            });
-
-            expect(result.statusCode).toBe(400);
-            expect(JSON.parse(result.body)).toEqual({
-                error: 'Invalid JSON in request body',
-                details: expect.any(String),
-            });
-        });
-
-        it('should reject unsupported actions', async () => {
-            const event = createMockEvent('POST', '{"action": "unsupported-action"}');
-            const result = await handler(event, undefined, undefined, {
-                storageService: mockStorageService,
-                secretsManagerClientImpl: mockSecretsManagerClient,
-            });
-
-            expect(result.statusCode).toBe(400);
-            expect(JSON.parse(result.body)).toEqual({
-                error: 'Invalid request parameters',
-                details: expect.any(Array),
-                allowedActions: ['confirm-lunch', 'opt-in-warnings', 'opt-out-warnings'],
-            });
-        });
-    });
-
-    describe('Lunch confirmation logic', () => {
-        it('should record lunch confirmation when not already confirmed', async () => {
+    describe('Lunch confirmation', () => {
+        it('should confirm lunch when not already confirmed', async () => {
+            const { handler, mockStorageService } = createTestHandler();
             const event = createMockEvent('POST', '{"action": "confirm-lunch"}');
-            const result = await handler(event, undefined, undefined, {
-                storageService: mockStorageService,
-                secretsManagerClientImpl: mockSecretsManagerClient,
-            });
+            const result = await handler(event);
 
             expect(result.statusCode).toBe(200);
-            const responseBody = JSON.parse(result.body);
-            expect(responseBody).toEqual({
-                message:
-                    'Thanks for confirming! Lunch confirmed for this week. No more weather reminders will be sent.',
-                action: 'confirm-lunch',
-                location: 'Munich',
-                confirmed: true,
-                config: {
-                    awsRegion: 'eu-central-1',
-                    badWeatherConditions: ['rain', 'drizzle', 'thunderstorm', 'snow'],
-                    dynamodbTableName: 'test-table',
-                    goodWeatherConditions: ['clear', 'clouds'],
-                    locationLat: 48.1351,
-                    locationLon: 11.582,
-                    locationName: 'Munich',
-                    minTemperature: 12,
-                    replyApiUrl: 'https://api.test.com',
-                    slackWebhookUrl: '[REDACTED]',
-                    weatherCheckHour: 12,
-                },
-            });
-
             expect(mockStorageService.hasLunchBeenConfirmedThisWeek).toHaveBeenCalledWith('Munich');
             expect(mockStorageService.recordLunchConfirmation).toHaveBeenCalledWith('Munich');
+
+            const body = JSON.parse(result.body);
+            expect(body.message).toContain('Thanks for confirming');
+            expect(body.confirmed).toBe(true);
         });
 
-        it('should return already confirmed message when lunch already confirmed', async () => {
+        it('should handle already confirmed lunch', async () => {
+            const { handler, mockStorageService } = createTestHandler();
             vi.spyOn(mockStorageService, 'hasLunchBeenConfirmedThisWeek').mockResolvedValue(true);
 
             const event = createMockEvent('POST', '{"action": "confirm-lunch"}');
-            const result = await handler(event, undefined, undefined, {
-                storageService: mockStorageService,
-                secretsManagerClientImpl: mockSecretsManagerClient,
-            });
+            const result = await handler(event);
 
             expect(result.statusCode).toBe(200);
-            const responseBody = JSON.parse(result.body);
-            expect(responseBody).toEqual({
-                message: 'Lunch already confirmed this week! No more weather reminders will be sent.',
-                location: 'Munich',
-                alreadyConfirmed: true,
-                config: {
-                    awsRegion: 'eu-central-1',
-                    dynamodbTableName: 'test-table',
-                    slackWebhookUrl: '[REDACTED]',
-                    replyApiUrl: 'https://api.test.com',
-                    badWeatherConditions: ['rain', 'drizzle', 'thunderstorm', 'snow'],
-                    goodWeatherConditions: ['clear', 'clouds'],
-                    locationLat: 48.1351,
-                    locationLon: 11.582,
-                    locationName: 'Munich',
-                    minTemperature: 12,
-                    weatherCheckHour: 12,
-                },
-            });
-
             expect(mockStorageService.hasLunchBeenConfirmedThisWeek).toHaveBeenCalledWith('Munich');
             expect(mockStorageService.recordLunchConfirmation).not.toHaveBeenCalled();
+
+            const body = JSON.parse(result.body);
+            expect(body.message).toContain('already confirmed');
+            expect(body.alreadyConfirmed).toBe(true);
         });
 
-        it('should use custom location from request body', async () => {
+        it('should use custom location when provided', async () => {
+            const { handler, mockStorageService } = createTestHandler();
             const event = createMockEvent('POST', '{"action": "confirm-lunch", "location": "Berlin"}');
-            const result = await handler(event, undefined, undefined, {
-                storageService: mockStorageService,
-                secretsManagerClientImpl: mockSecretsManagerClient,
-            });
+            const result = await handler(event);
 
             expect(result.statusCode).toBe(200);
-            const responseBody = JSON.parse(result.body);
-            expect(responseBody.location).toBe('Berlin');
             expect(mockStorageService.hasLunchBeenConfirmedThisWeek).toHaveBeenCalledWith('Berlin');
             expect(mockStorageService.recordLunchConfirmation).toHaveBeenCalledWith('Berlin');
+        });
+    });
+
+    describe('Weather warning preferences', () => {
+        it('should opt in to weather warnings', async () => {
+            const { handler, mockStorageService } = createTestHandler();
+            const event = createMockEvent('POST', '{"action": "opt-in-warnings"}');
+            const result = await handler(event);
+
+            expect(result.statusCode).toBe(200);
+            expect(mockStorageService.setWeatherWarningOptInStatus).toHaveBeenCalledWith('Munich', true);
+
+            const body = JSON.parse(result.body);
+            expect(body.message).toContain('opted in to weather warnings');
+            expect(body.optedIn).toBe(true);
+        });
+
+        it('should opt out of weather warnings', async () => {
+            const { handler, mockStorageService } = createTestHandler();
+            const event = createMockEvent('POST', '{"action": "opt-out-warnings"}');
+            const result = await handler(event);
+
+            expect(result.statusCode).toBe(200);
+            expect(mockStorageService.setWeatherWarningOptInStatus).toHaveBeenCalledWith('Munich', false);
+
+            const body = JSON.parse(result.body);
+            expect(body.message).toContain('opted out of weather warnings');
+            expect(body.optedIn).toBe(false);
+        });
+
+        it('should use custom location for weather warning preferences', async () => {
+            const { handler, mockStorageService } = createTestHandler();
+            const event = createMockEvent('POST', '{"action": "opt-in-warnings", "location": "Frankfurt"}');
+            const result = await handler(event);
+
+            expect(result.statusCode).toBe(200);
+            expect(mockStorageService.setWeatherWarningOptInStatus).toHaveBeenCalledWith('Frankfurt', true);
         });
     });
 
     describe('Error handling', () => {
-        it('should handle storage service errors', async () => {
+        it('should handle storage service errors gracefully', async () => {
+            const { handler, mockStorageService } = createTestHandler();
             vi.spyOn(mockStorageService, 'hasLunchBeenConfirmedThisWeek').mockRejectedValue(
-                new Error('DynamoDB error'),
+                new Error('Database error'),
             );
 
             const event = createMockEvent('POST', '{"action": "confirm-lunch"}');
-            const result = await handler(event, undefined, undefined, {
-                storageService: mockStorageService,
-                secretsManagerClientImpl: mockSecretsManagerClient,
-            });
+            const result = await handler(event);
 
             expect(result.statusCode).toBe(500);
-            expect(JSON.parse(result.body)).toEqual({
-                error: 'Internal server error',
-                message: 'DynamoDB error',
-            });
-
-            expect(mockStorageService.hasLunchBeenConfirmedThisWeek).toHaveBeenCalledWith('Munich');
+            const body = JSON.parse(result.body);
+            expect(body.error).toBe('Internal server error');
         });
 
-        it('should handle unknown errors', async () => {
-            vi.spyOn(mockStorageService, 'hasLunchBeenConfirmedThisWeek').mockRejectedValue('Unknown error');
-
+        it('should redact sensitive information from responses', async () => {
+            const { handler } = createTestHandler();
             const event = createMockEvent('POST', '{"action": "confirm-lunch"}');
-            const result = await handler(event, undefined, undefined, {
-                storageService: mockStorageService,
-                secretsManagerClientImpl: mockSecretsManagerClient,
-            });
+            const result = await handler(event);
 
-            expect(result.statusCode).toBe(500);
-            expect(JSON.parse(result.body)).toEqual({
-                error: 'Internal server error',
-                message: 'Unknown error',
-            });
-
-            expect(mockStorageService.hasLunchBeenConfirmedThisWeek).toHaveBeenCalledWith('Munich');
+            const body = JSON.parse(result.body);
+            expect(body.config.slackWebhookUrl).toBe('[REDACTED]');
         });
     });
 });

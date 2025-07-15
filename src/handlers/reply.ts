@@ -4,109 +4,128 @@ import { getConfig, getCoordinates } from '../utils/env';
 import { DynamoDBStorageService } from '../implementations/dynamodb-storage';
 import { SecretsManagerClientImpl } from '../implementations/secrets-manager-client';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
 
 const replyRequestSchema = z.object({
     action: z.enum(['confirm-lunch', 'opt-in-warnings', 'opt-out-warnings']).default('confirm-lunch'),
     location: z.string().optional(),
 });
 
-export const handler = (async (
-    event: Pick<APIGatewayProxyEvent, 'httpMethod' | 'body' | 'queryStringParameters'>,
-    _?: unknown,
-    __?: unknown,
-    dependencies: {
-        storageService?: Pick<
-            DynamoDBStorageService,
-            'hasLunchBeenConfirmedThisWeek' | 'recordLunchConfirmation' | 'setWeatherWarningOptInStatus'
-        >;
-        secretsManagerClientImpl?: Pick<SecretsManagerClientImpl, 'getSecretValue'>;
-    } = {},
-) => {
-    console.log('Reply handler started', { event });
+export interface ReplyHandlerDependencies {
+    storageService?: Pick<
+        DynamoDBStorageService,
+        'hasLunchBeenConfirmedThisWeek' | 'recordLunchConfirmation' | 'setWeatherWarningOptInStatus'
+    >;
+    secretsManagerClient: Pick<SecretsManagerClientImpl, 'getSecretValue'>;
+}
 
-    try {
-        const corsHeaders = {
-            'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
-            'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
-            'Access-Control-Allow-Origin': '*',
-        } as const;
+export const createReplyHandler = (dependencies: ReplyHandlerDependencies) =>
+    (async (event: Pick<APIGatewayProxyEvent, 'httpMethod' | 'body' | 'queryStringParameters'>) => {
+        console.log('Reply handler started', { event });
 
-        if (event.httpMethod === 'OPTIONS') {
-            return {
-                statusCode: 200,
-                headers: corsHeaders,
-                body: JSON.stringify({ message: 'CORS preflight successful' }),
-            };
-        }
+        try {
+            const corsHeaders = {
+                'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
+                'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+                'Access-Control-Allow-Origin': '*',
+            } as const;
 
-        if (!['POST', 'GET'].includes(event.httpMethod)) {
-            return {
-                body: JSON.stringify({ error: 'Method not allowed', allowedMethods: ['GET', 'POST', 'OPTIONS'] }),
-                headers: corsHeaders,
-                statusCode: 405,
-            };
-        }
+            if (event.httpMethod === 'OPTIONS') {
+                return {
+                    statusCode: 200,
+                    headers: corsHeaders,
+                    body: JSON.stringify({ message: 'CORS preflight successful' }),
+                };
+            }
 
-        let requestData = {};
+            if (!['POST', 'GET'].includes(event.httpMethod)) {
+                return {
+                    body: JSON.stringify({ error: 'Method not allowed', allowedMethods: ['GET', 'POST', 'OPTIONS'] }),
+                    headers: corsHeaders,
+                    statusCode: 405,
+                };
+            }
 
-        if (event.httpMethod === 'POST' && event.body) {
-            try {
-                requestData = JSON.parse(event.body);
-            } catch (error) {
+            let requestData = {};
+
+            if (event.httpMethod === 'POST' && event.body) {
+                try {
+                    requestData = JSON.parse(event.body);
+                } catch (error) {
+                    return {
+                        statusCode: 400,
+                        headers: corsHeaders,
+                        body: JSON.stringify({
+                            error: 'Invalid JSON in request body',
+                            details: error instanceof Error ? error.message : 'Unknown parsing error',
+                        }),
+                    };
+                }
+            } else if (event.httpMethod === 'GET' && event.queryStringParameters) {
+                requestData = event.queryStringParameters;
+            }
+
+            const parseResult = replyRequestSchema.safeParse(requestData);
+            if (!parseResult.success) {
                 return {
                     statusCode: 400,
                     headers: corsHeaders,
                     body: JSON.stringify({
-                        error: 'Invalid JSON in request body',
-                        details: error instanceof Error ? error.message : 'Unknown parsing error',
+                        error: 'Invalid request parameters',
+                        details: parseResult.error.issues,
+                        allowedActions: ['confirm-lunch', 'opt-in-warnings', 'opt-out-warnings'],
                     }),
                 };
             }
-        } else if (event.httpMethod === 'GET' && event.queryStringParameters) {
-            requestData = event.queryStringParameters;
-        }
 
-        const parseResult = replyRequestSchema.safeParse(requestData);
-        if (!parseResult.success) {
-            return {
-                statusCode: 400,
-                headers: corsHeaders,
-                body: JSON.stringify({
-                    error: 'Invalid request parameters',
-                    details: parseResult.error.issues,
-                    allowedActions: ['confirm-lunch', 'opt-in-warnings', 'opt-out-warnings'],
-                }),
-            };
-        }
+            const { action, location: customLocation } = parseResult.data;
 
-        const { action, location: customLocation } = parseResult.data;
+            const config = await getConfig(undefined, { secretsManagerClientImpl: dependencies.secretsManagerClient });
+            const coordinates = await getCoordinates();
 
-        const config = await getConfig(undefined, { secretsManagerClientImpl: dependencies.secretsManagerClientImpl });
-        const coordinates = await getCoordinates();
+            const locationName = customLocation || coordinates.locationName;
 
-        const locationName = customLocation || coordinates.locationName;
+            console.log(`Processing reply action: ${action} for location: ${locationName}`);
 
-        console.log(`Processing reply action: ${action} for location: ${locationName}`);
+            const storageService =
+                dependencies.storageService ??
+                new DynamoDBStorageService({
+                    client: new DynamoDBClient({ region: config.awsRegion }),
+                    tableName: config.dynamodbTableName,
+                });
 
-        const storageService =
-            dependencies.storageService ??
-            new DynamoDBStorageService({
-                client: new DynamoDBClient({ region: config.awsRegion }),
-                tableName: config.dynamodbTableName,
-            });
+            if (action === 'confirm-lunch') {
+                const alreadyConfirmed = await storageService.hasLunchBeenConfirmedThisWeek(locationName);
 
-        if (action === 'confirm-lunch') {
-            const alreadyConfirmed = await storageService.hasLunchBeenConfirmedThisWeek(locationName);
+                if (alreadyConfirmed) {
+                    console.log(`Lunch already confirmed this week for location: ${locationName}`);
+                    return {
+                        statusCode: 200,
+                        headers: corsHeaders,
+                        body: JSON.stringify({
+                            message: 'Lunch already confirmed this week! No more weather reminders will be sent.',
+                            location: locationName,
+                            alreadyConfirmed: true,
+                            config: {
+                                ...config,
+                                slackWebhookUrl: '[REDACTED]',
+                            },
+                        }),
+                    };
+                }
 
-            if (alreadyConfirmed) {
-                console.log(`Lunch already confirmed this week for location: ${locationName}`);
+                await storageService.recordLunchConfirmation(locationName);
+                console.log(`Successfully recorded lunch confirmation for location: ${locationName}`);
+
                 return {
                     statusCode: 200,
                     headers: corsHeaders,
                     body: JSON.stringify({
-                        message: 'Lunch already confirmed this week! No more weather reminders will be sent.',
+                        message:
+                            'Thanks for confirming! Lunch confirmed for this week. No more weather reminders will be sent.',
+                        action,
                         location: locationName,
-                        alreadyConfirmed: true,
+                        confirmed: true,
                         config: {
                             ...config,
                             slackWebhookUrl: '[REDACTED]',
@@ -115,91 +134,82 @@ export const handler = (async (
                 };
             }
 
-            await storageService.recordLunchConfirmation(locationName);
-            console.log(`Successfully recorded lunch confirmation for location: ${locationName}`);
+            if (action === 'opt-in-warnings') {
+                await storageService.setWeatherWarningOptInStatus(locationName, true);
+                console.log(`Successfully opted in to weather warnings for location: ${locationName}`);
+
+                return {
+                    statusCode: 200,
+                    headers: corsHeaders,
+                    body: JSON.stringify({
+                        message:
+                            'Successfully opted in to weather warnings. You will now receive notifications when the weather is not suitable for outdoor lunch.',
+                        action,
+                        location: locationName,
+                        optedIn: true,
+                        config: {
+                            ...config,
+                            slackWebhookUrl: '[REDACTED]',
+                        },
+                    }),
+                };
+            }
+
+            if (action === 'opt-out-warnings') {
+                await storageService.setWeatherWarningOptInStatus(locationName, false);
+                console.log(`Successfully opted out of weather warnings for location: ${locationName}`);
+
+                return {
+                    statusCode: 200,
+                    headers: corsHeaders,
+                    body: JSON.stringify({
+                        message:
+                            'Successfully opted out of weather warnings. You will no longer receive notifications about bad weather.',
+                        action,
+                        location: locationName,
+                        optedIn: false,
+                        config: {
+                            ...config,
+                            slackWebhookUrl: '[REDACTED]',
+                        },
+                    }),
+                };
+            }
 
             return {
-                statusCode: 200,
+                statusCode: 400,
                 headers: corsHeaders,
                 body: JSON.stringify({
-                    message:
-                        'Thanks for confirming! Lunch confirmed for this week. No more weather reminders will be sent.',
-                    action,
-                    location: locationName,
-                    confirmed: true,
-                    config: {
-                        ...config,
-                        slackWebhookUrl: '[REDACTED]',
-                    },
+                    error: 'Unknown action',
+                    providedAction: action,
+                    allowedActions: ['confirm-lunch', 'opt-in-warnings', 'opt-out-warnings'],
+                }),
+            };
+        } catch (error) {
+            console.error('Error in reply handler:', error);
+
+            return {
+                statusCode: 500,
+                headers: {
+                    'Access-Control-Allow-Origin': '*',
+                    'Access-Control-Allow-Headers':
+                        'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
+                    'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+                },
+                body: JSON.stringify({
+                    error: 'Internal server error',
+                    message: error instanceof Error ? error.message : 'Unknown error',
                 }),
             };
         }
+    }) satisfies APIGatewayProxyHandler;
 
-        if (action === 'opt-in-warnings') {
-            await storageService.setWeatherWarningOptInStatus(locationName, true);
-            console.log(`Successfully opted in to weather warnings for location: ${locationName}`);
+const createProductionDependencies = (): ReplyHandlerDependencies => {
+    const client = new SecretsManagerClient({
+        region: process.env['AWS_DEFAULT_REGION'] || 'eu-central-1',
+    });
 
-            return {
-                statusCode: 200,
-                headers: corsHeaders,
-                body: JSON.stringify({
-                    message:
-                        'Successfully opted in to weather warnings. You will now receive notifications when the weather is not suitable for outdoor lunch.',
-                    action,
-                    location: locationName,
-                    optedIn: true,
-                    config: {
-                        ...config,
-                        slackWebhookUrl: '[REDACTED]',
-                    },
-                }),
-            };
-        }
+    return { secretsManagerClient: new SecretsManagerClientImpl(client) };
+};
 
-        if (action === 'opt-out-warnings') {
-            await storageService.setWeatherWarningOptInStatus(locationName, false);
-            console.log(`Successfully opted out of weather warnings for location: ${locationName}`);
-
-            return {
-                statusCode: 200,
-                headers: corsHeaders,
-                body: JSON.stringify({
-                    message:
-                        'Successfully opted out of weather warnings. You will no longer receive notifications about bad weather.',
-                    action,
-                    location: locationName,
-                    optedIn: false,
-                    config: {
-                        ...config,
-                        slackWebhookUrl: '[REDACTED]',
-                    },
-                }),
-            };
-        }
-
-        return {
-            statusCode: 400,
-            headers: corsHeaders,
-            body: JSON.stringify({
-                error: 'Unknown action',
-                providedAction: action,
-                allowedActions: ['confirm-lunch', 'opt-in-warnings', 'opt-out-warnings'],
-            }),
-        };
-    } catch (error) {
-        console.error('Error in reply handler:', error);
-
-        return {
-            statusCode: 500,
-            headers: {
-                'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
-                'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
-            },
-            body: JSON.stringify({
-                error: 'Internal server error',
-                message: error instanceof Error ? error.message : 'Unknown error',
-            }),
-        };
-    }
-}) satisfies APIGatewayProxyHandler;
+export const handler = createReplyHandler(createProductionDependencies());
