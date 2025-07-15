@@ -1,0 +1,58 @@
+---
+description: TypeScript serverless architecture patterns for AWS Lambda functions
+globs: src/**/*.ts
+alwaysApply: true
+---
+
+# TypeScript Serverless Architecture
+
+## Handler Structure
+- Write Lambda handlers as named exports using the `handler` function name
+- Use proper AWS Lambda event types from `@types/aws-lambda`
+- Structure handlers with clear separation: validation → business logic → response
+- Always log important events and errors with structured logging
+
+## Dependency Injection
+- Use constructor injection for all dependencies
+- Accept interfaces rather than concrete implementations in constructors
+- Use factory functions or dependency containers for Lambda initialization
+- Make dependencies easily mockable for testing
+
+## Error Handling
+- Catch errors at the handler level and return proper HTTP status codes
+- Log errors with context before throwing or returning error responses
+- Use structured error responses with consistent format
+- Always include error details in development but sanitize in production
+
+## Environment Configuration
+- Centralize environment variable parsing using Zod schemas
+- Cache parsed environment variables to avoid repeated parsing
+- Provide sensible defaults where appropriate
+- Validate all environment variables at startup
+
+## AWS SDK Best Practices
+- Use AWS SDK v3 with modular imports
+- Implement proper client configuration and reuse
+- Use dependency injection for AWS clients to enable testing
+- Always handle AWS SDK errors gracefully
+
+Example handler structure:
+```typescript
+export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+    try {
+        const request = validateRequest(event);
+        const result = await processRequest(request, dependencies);
+        
+        return {
+            statusCode: 200,
+            body: JSON.stringify(result)
+        };
+    } catch (error) {
+        console.error('Handler error:', error);
+        return {
+            statusCode: 500,
+            body: JSON.stringify({ error: 'Internal server error' })
+        };
+    }
+};
+```

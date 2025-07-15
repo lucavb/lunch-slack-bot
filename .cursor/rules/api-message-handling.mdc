@@ -1,0 +1,104 @@
+---
+description: API handling and Slack message formatting patterns
+globs: src/handlers/**/*.ts, src/implementations/*slack*.ts, src/utils/**/*.ts
+alwaysApply: true
+---
+
+# API and Message Handling Patterns
+
+## API Gateway Response Format
+- Return consistent response objects with `statusCode` and `body` properties
+- Always stringify response body as JSON for API Gateway
+- Use appropriate HTTP status codes (200, 400, 500, etc.)
+- Include CORS headers when needed for browser clients
+- Log request/response details for debugging and monitoring
+
+## Request Validation
+- Validate all incoming requests using Zod schemas
+- Support both POST body and GET query parameters where appropriate
+- Provide clear error messages for validation failures
+- Handle missing or malformed request data gracefully
+
+## Slack Message Structure
+- Use Slack's Block Kit for rich message formatting
+- Include fallback text for accessibility and notifications
+- Structure messages with clear sections and actions
+- Use appropriate emojis and formatting for visual appeal
+- Include interactive elements like buttons when relevant
+
+## Error Response Handling
+- Provide consistent error response format
+- Include action type and location context in responses
+- Use descriptive error messages that help users understand what went wrong
+- Log errors with sufficient context for debugging
+
+## URL Generation and Management
+- Use URL constructor for safe URL building
+- Set query parameters systematically using `searchParams`
+- Validate URLs before using them in API calls
+- Handle URL encoding properly for special characters
+
+Example API handler pattern:
+```typescript
+export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+    try {
+        console.log('Handler started', { httpMethod: event.httpMethod });
+        
+        const requestData = event.httpMethod === 'POST' 
+            ? (event.body ? JSON.parse(event.body) : {})
+            : (event.queryStringParameters || {});
+        
+        const validatedRequest = requestSchema.parse(requestData);
+        const result = await processRequest(validatedRequest);
+        
+        return {
+            statusCode: 200,
+            headers: {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            },
+            body: JSON.stringify({
+                message: 'Success',
+                ...result
+            })
+        };
+    } catch (error) {
+        console.error('Handler error:', error);
+        return {
+            statusCode: error.statusCode || 500,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                error: error.message || 'Internal server error'
+            })
+        };
+    }
+};
+```
+
+Example Slack message formatting:
+```typescript
+const createWeatherMessage = (location: string, temperature: number, description: string, confirmUrl?: string) => {
+    const baseMessage = `🌤️ Hey team! The weather looks great for lunch outside today!
+
+📍 ${location}
+🌡️ ${temperature}°C at noon  
+☀️ ${description}`;
+
+    if (confirmUrl) {
+        return `${baseMessage}
+
+Anyone up for a lunch meetup in the park? React with ✅ to communicate with colleagues, and <${confirmUrl}|click here after your lunch meeting> to confirm it for this week!`;
+    }
+
+    return `${baseMessage}
+
+Anyone up for a lunch meetup in the park? React with ✅ if you're interested!`;
+};
+```
+
+## HTTP Client Patterns
+- Handle different content types appropriately (JSON, plain text)
+- Implement proper error handling for HTTP requests
+- Use structured logging for API calls and responses
+- Handle empty responses and "ok" responses from webhooks
+- Implement retry logic for transient failures where appropriate

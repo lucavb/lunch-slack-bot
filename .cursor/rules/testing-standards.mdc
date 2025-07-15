@@ -1,0 +1,92 @@
+---
+description: Testing standards and patterns using Vitest
+globs: **/*.spec.ts, **/*.test.ts, src/**/*.ts
+alwaysApply: true
+---
+
+# Testing Standards with Vitest
+
+## Test File Organization
+- Place test files next to the code they test with `.spec.ts` extension
+- Use descriptive test names that clearly explain the scenario
+- Group related tests using `describe` blocks with clear hierarchical structure
+- Follow the pattern: `describe('ClassName/FunctionName')` > `describe('methodName')` > `it('should...')`
+
+## Test Structure
+- Use AAA pattern: Arrange, Act, Assert
+- Set up fresh mocks in `beforeEach` hooks to ensure test isolation
+- Use descriptive variable names that make test intent clear
+- Write tests that are easy to read and understand the expected behavior
+
+## Mocking Patterns
+- Use Vitest's `vi.fn()` for creating mocks
+- Mock external dependencies through dependency injection
+- Create realistic mock data that represents actual API responses
+- Reset mocks between tests to prevent test interdependence
+
+## Assertion Strategies
+- Use specific assertions that test the exact behavior needed
+- Test both success and error cases for every function
+- Verify that mocks are called with expected parameters
+- Assert on the complete structure of returned objects when relevant
+
+## Test Data Management
+- Create reusable mock data objects for consistent testing
+- Use factories or builders for complex test data creation
+- Keep test data realistic and representative of production scenarios
+
+Example test structure:
+```typescript
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { DynamoDBStorageService } from './dynamodb-storage';
+
+describe('DynamoDBStorageService', () => {
+    let storageService: DynamoDBStorageService;
+    let mockClient: { send: ReturnType<typeof vi.fn> };
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+        mockClient = { send: vi.fn() };
+        storageService = new DynamoDBStorageService({ 
+            tableName: 'test-table', 
+            client: mockClient 
+        });
+    });
+
+    describe('hasMessageBeenSentToday', () => {
+        it('should return true if message exists for today', async () => {
+            mockClient.send.mockResolvedValueOnce({
+                Items: [{ id: 'Munich#weather_reminder#2024-01-01' }],
+            });
+
+            const result = await storageService.hasMessageBeenSentToday('weather_reminder', 'Munich');
+
+            expect(result).toBe(true);
+            expect(mockClient.send).toHaveBeenCalledWith(expect.objectContaining({
+                TableName: 'test-table'
+            }));
+        });
+
+        it('should return false if no message exists for today', async () => {
+            mockClient.send.mockResolvedValueOnce({ Items: [] });
+
+            const result = await storageService.hasMessageBeenSentToday('weather_reminder', 'Munich');
+
+            expect(result).toBe(false);
+        });
+
+        it('should throw error on DynamoDB failure', async () => {
+            mockClient.send.mockRejectedValueOnce(new Error('DynamoDB error'));
+
+            await expect(storageService.hasMessageBeenSentToday('weather_reminder', 'Munich'))
+                .rejects.toThrow('Failed to check message status');
+        });
+    });
+});
+```
+
+## Coverage Goals
+- Aim for high test coverage but focus on meaningful tests
+- Prioritize testing business logic and error handling paths
+- Test edge cases and boundary conditions
+- Use coverage reports to identify untested critical paths

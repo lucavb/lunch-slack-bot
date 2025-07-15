@@ -1,0 +1,85 @@
+---
+description: Code quality standards for ESLint, Prettier, and TypeScript
+globs: src/**/*.ts, *.ts, *.mts
+alwaysApply: true
+---
+
+# Code Quality Standards
+
+## TypeScript Configuration
+- Use strict TypeScript settings with all strict flags enabled
+- Enable `noImplicitAny`, `noImplicitReturns`, `noUnusedLocals`, and `noUnusedParameters`
+- Use `exactOptionalPropertyTypes` for precise type checking
+- Prefer explicit return types for public methods and functions
+- Use meaningful variable and function names that express intent
+
+## Import Organization
+- Group imports logically: Node.js built-ins, external packages, internal modules
+- Use absolute imports for shared utilities and types
+- Prefer named imports over default imports for better tree shaking
+- Import only what you need to keep bundle sizes small
+
+## Function and Method Design
+- Keep functions small and focused on a single responsibility
+- Use pure functions where possible for easier testing and reasoning
+- Prefer `async/await` over Promise chains for better readability
+- Handle errors at appropriate levels with proper context
+
+## Variable and Type Declarations
+- Use `const` by default, `let` only when reassignment is necessary
+- Prefer `readonly` arrays and objects where data shouldn't be mutated
+- Use type assertions sparingly and prefer type guards
+- Create custom types for domain concepts rather than using primitives
+
+## Code Organization
+- Export types and interfaces from dedicated files
+- Use barrel exports (`index.ts`) to simplify imports
+- Keep files focused and cohesive - split large files into smaller modules
+- Place reusable utilities in the `utils/` directory
+
+## Error Handling
+- Use proper error types and avoid throwing strings
+- Log errors with sufficient context for debugging
+- Fail fast with clear error messages
+- Use Result/Either patterns for expected error cases where appropriate
+
+## Self-Documenting Code
+- Write code that tells a story through clear, descriptive names
+- Use meaningful variable and function names that express intent and purpose
+- Structure code flow to be readable and understandable without comments
+- Reserve comments exclusively for complex business logic, non-obvious decisions, and public APIs
+- Write JSDoc comments only for public APIs that need detailed documentation
+- Document business rules and constraints that aren't obvious from the code itself
+
+## Performance Considerations
+- Use object destructuring judiciously (avoid in hot paths)
+- Cache expensive computations when appropriate
+- Prefer early returns to reduce nesting
+- Use `satisfies` operator for type checking without widening
+
+Example of self-documenting code:
+```typescript
+export async function evaluateWeatherConditions(
+    coordinates: Coordinates,
+    weatherApi: WeatherApi
+): Promise<WeatherEvaluation> {
+    try {
+        const forecast = await weatherApi.getForecast(coordinates);
+        
+        const noonWeather = findNoonWeather(forecast);
+        if (!noonWeather) {
+            throw new Error(`No weather data available for ${coordinates.locationName}`);
+        }
+
+        return {
+            temperature: noonWeather.temperature_2m,
+            condition: mapWeatherCode(noonWeather.weathercode),
+            isGood: isWeatherSuitable(noonWeather),
+            timestamp: Date.now()
+        } satisfies WeatherEvaluation;
+    } catch (error) {
+        console.error('Failed to evaluate weather conditions:', error);
+        throw new Error(`Weather evaluation failed: ${error}`);
+    }
+}
+```

@@ -1,0 +1,68 @@
+---
+description: Package management and build process standards
+globs: package.json, *.config.*, src/**/*.ts
+alwaysApply: true
+---
+
+# Package Management and Build Standards
+
+## Dependency Management
+- Use `npm install <package-name>` to add runtime dependencies
+- Use `npm install --save-dev <package-name>` to add development dependencies
+- Pin AWS SDK versions to ensure consistent behavior across environments
+- Keep dependencies up-to-date but test thoroughly before upgrading major versions
+
+## Build Configuration
+- Use esbuild for fast TypeScript compilation and bundling
+- Target Node.js 22.x for Lambda runtime compatibility
+- External AWS SDK to reduce bundle size (provided by Lambda runtime)
+- Generate source maps for better debugging in development
+
+## Script Organization
+- Provide separate build scripts for different Lambda functions
+- Include development scripts with watch mode for faster iteration
+- Use code quality scripts that run all checks (`cq` command)
+- Provide both individual and combined quality check commands
+
+## Quality Tools Configuration
+- Configure ESLint with TypeScript support and recommended rules
+- Use Prettier for consistent code formatting across the team
+- Set up TypeScript strict mode for better type safety
+- Configure Vitest for fast testing with proper environment setup
+
+Example package.json scripts:
+```json
+{
+  "scripts": {
+    "build": "npm run clean && npm run build:weather-check && npm run build:reply",
+    "build:weather-check": "esbuild src/handlers/weather-check.ts --bundle --platform=node --target=node22 --outfile=dist/weather-check.js --external:aws-sdk --sourcemap",
+    "build:reply": "esbuild src/handlers/reply.ts --bundle --platform=node --target=node22 --outfile=dist/reply.js --external:aws-sdk --sourcemap",
+    "build:dev": "npm run clean && npm run build:weather-check -- --watch & npm run build:reply -- --watch",
+    "clean": "rm -rf dist",
+    "cq": "npm run cq:type-check && npm run cq:lint && npm run cq:format:check",
+    "cq:type-check": "tsc --noEmit",
+    "cq:lint": "eslint src/",
+    "cq:format": "prettier --write \"src/**/*.{ts,js,json}\" \"*.{json,md}\"",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
+  }
+}
+```
+
+## Development Workflow
+- Run `npm run cq` before committing to ensure code quality
+- Use `npm run build:dev` for development with watch mode
+- Run tests continuously during development with `npm run test:watch`
+- Generate coverage reports to identify untested code paths
+
+## Node.js Version Management
+- Use Node.js 22.x or higher for development (specified in engines field)
+- Ensure consistency between development and Lambda runtime versions
+- Use appropriate TypeScript target for Node.js compatibility
+
+## Bundle Optimization
+- External AWS SDK to leverage Lambda's built-in version
+- Use tree shaking to eliminate unused code
+- Monitor bundle sizes to keep Lambda cold starts fast
+- Use source maps in development but consider excluding in production

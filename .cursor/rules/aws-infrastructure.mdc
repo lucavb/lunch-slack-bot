@@ -1,0 +1,83 @@
+---
+description: AWS infrastructure patterns using Terraform/OpenTofu
+globs: terraform/**/*.tf
+alwaysApply: true
+---
+
+# AWS Infrastructure with Terraform/OpenTofu
+
+## Resource Naming
+- Use consistent naming with project prefix and optional deployment suffix
+- Follow pattern: `${project_name}${deployment_suffix}-${resource_type}`
+- Use local values for computed names to ensure consistency
+- Apply meaningful tags to all resources for cost tracking and management
+
+## Security Best Practices
+- Store sensitive data in AWS Secrets Manager, never in configuration files
+- Use least-privilege IAM policies with specific resource ARNs
+- Enable encryption at rest for all data stores
+- Use VPC endpoints where appropriate to keep traffic within AWS network
+
+## Lambda Configuration
+- Use Node.js 22.x runtime for latest features and security updates
+- Set appropriate timeout and memory based on function requirements
+- Use environment variables for configuration, not hardcoded values
+- Enable CloudWatch logging with appropriate retention periods
+
+## Infrastructure Organization
+- Separate resources logically across multiple `.tf` files
+- Use consistent variable naming and validation
+- Provide meaningful descriptions for all variables and outputs
+- Use data sources for referencing existing AWS resources
+
+## State Management
+- Use remote state with S3 backend and DynamoDB for locking
+- Enable versioning and encryption for state bucket
+- Use workspace separation for different environments
+- Include backend configuration comments for easy setup
+
+Example resource structure:
+```hcl
+locals {
+  name_suffix = var.deployment_suffix != "" ? "-${var.deployment_suffix}" : ""
+  base_name   = "${var.project_name}${local.name_suffix}"
+}
+
+resource "aws_lambda_function" "weather_check" {
+  filename         = data.archive_file.weather_check.output_path
+  function_name    = "${local.base_name}-weather-check"
+  role            = aws_iam_role.lambda_execution_role.arn
+  handler         = "weather-check.handler"
+  runtime         = var.lambda_runtime
+  timeout         = var.lambda_timeout
+  memory_size     = var.lambda_memory
+  source_code_hash = data.archive_file.weather_check.output_base64sha256
+
+  environment {
+    variables = {
+      SLACK_WEBHOOK_SECRET_ARN = aws_secretsmanager_secret.slack_webhook.arn
+      LOCATION_NAME            = var.location_name
+      DYNAMODB_TABLE_NAME      = aws_dynamodb_table.message_tracking.name
+    }
+  }
+
+  depends_on = [
+    aws_iam_role_policy.lambda_policy,
+    aws_cloudwatch_log_group.weather_check,
+  ]
+
+  tags = var.tags
+}
+```
+
+## Secrets Management
+- Use AWS Secrets Manager for all sensitive configuration
+- Reference secrets by ARN in Lambda environment variables
+- Never commit webhook URLs or API keys to version control
+- Use proper IAM permissions for secret access
+
+## Monitoring and Observability
+- Create CloudWatch Log Groups with appropriate retention
+- Set up proper IAM roles and policies for monitoring
+- Use structured logging in Lambda functions
+- Consider CloudWatch alarms for critical functions

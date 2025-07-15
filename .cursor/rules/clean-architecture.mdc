@@ -1,0 +1,74 @@
+---
+description: Clean architecture patterns with interfaces and dependency injection
+globs: src/interfaces/**/*.ts, src/implementations/**/*.ts
+alwaysApply: true
+---
+
+# Clean Architecture Patterns
+
+## Interface Design
+- Define interfaces in `src/interfaces/` directory with descriptive names ending in `.interface.ts`
+- Use PascalCase for interface names without "I" prefix
+- Write self-documenting method names that clearly express their purpose
+- Use JSDoc comments only for complex business logic or non-obvious behavior
+- Keep interfaces focused and cohesive - follow single responsibility principle
+- Use generic types where appropriate for reusability
+
+## Implementation Conventions
+- Place concrete implementations in `src/implementations/` directory
+- Use descriptive class names that clearly indicate their purpose (e.g., `DynamoDBStorageService`, `WebhookSlackServiceImpl`)
+- Always implement the full interface contract
+- Use dependency injection through constructor parameters
+- Make dependencies explicit through constructor parameter typing
+
+## Dependency Management
+- Accept interfaces rather than concrete classes in constructors
+- Use `Pick<T, K>` types to specify only needed methods from dependencies
+- Implement proper error handling in all methods
+- Log important operations and errors with context
+
+## File Organization
+```
+src/
+├── interfaces/           # Abstract contracts
+│   ├── storage.interface.ts
+│   ├── weather-api.interface.ts
+│   └── webhook-slack.interface.ts
+├── implementations/      # Concrete implementations
+│   ├── dynamodb-storage.ts
+│   ├── openmeteo-api.ts
+│   └── webhook-slack.ts
+```
+
+Example interface:
+```typescript
+export interface StorageService {
+    hasMessageBeenSentToday(messageType: string, location: string): Promise<boolean>;
+    recordMessageSent(messageType: string, location: string): Promise<void>;
+}
+```
+
+Example implementation:
+```typescript
+export class DynamoDBStorageService implements StorageService {
+    constructor(
+        private readonly client: Pick<DynamoDBClient, 'send'>,
+        private readonly tableName: string
+    ) {}
+
+    async hasMessageBeenSentToday(messageType: string, location: string): Promise<boolean> {
+        const today = format(new Date(), 'yyyy-MM-dd');
+        const messageId = `${location}#${messageType}#${today}`;
+        
+        const command = new QueryCommand({
+            ExpressionAttributeValues: marshall({ ':id': messageId }),
+            KeyConditionExpression: 'id = :id',
+            Limit: 1,
+            TableName: this.tableName,
+        });
+
+        const result = await this.client.send(command);
+        return (result.Items?.length ?? 0) > 0;
+    }
+}
+```

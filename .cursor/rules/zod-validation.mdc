@@ -1,0 +1,64 @@
+---
+description: Zod validation patterns and schema organization
+globs: src/schemas/**/*.ts, src/**/*.ts
+alwaysApply: true
+---
+
+# Zod Validation Patterns
+
+## Schema Organization
+- Place all Zod schemas in `src/schemas/` directory
+- Use descriptive schema names ending with `Schema` (e.g., `weatherConditionSchema`)
+- Create corresponding TypeScript types using `z.infer<typeof schema>`
+- Export both schemas and types from schema files
+
+## Validation Functions
+- Create dedicated validation functions for each schema (e.g., `validateWeatherCondition`)
+- Include both parsing and safe parsing options where needed
+- Use descriptive error messages and proper error handling
+- Create type guard functions using `safeParse` for runtime checks
+
+## Schema Composition
+- Use `z.enum()` for fixed sets of values with const assertions
+- Compose complex schemas from simpler ones using `z.object()` and references
+- Use `z.array()` with minimum length validation where appropriate
+- Apply reasonable validation constraints (min/max values, string lengths)
+
+## Constants and Enums
+- Define const arrays for enum values and reference them in schemas
+- Export both the const array and the schema for different use cases
+- Use meaningful names for validation constraints
+
+Example schema structure:
+```typescript
+import { z } from 'zod';
+
+export const WEATHER_CONDITIONS = ['clear', 'clouds', 'rain', 'drizzle', 'snow', 'thunderstorm'] as const;
+
+export const weatherConditionSchema = z.enum(WEATHER_CONDITIONS);
+
+export const weatherConditionResultSchema = z.object({
+    condition: weatherConditionSchema,
+    temperature: z.number(),
+    description: z.string(),
+    isGood: z.boolean(),
+    timestamp: z.number(),
+});
+
+export type WeatherCondition = z.infer<typeof weatherConditionSchema>;
+export type WeatherConditionResult = z.infer<typeof weatherConditionResultSchema>;
+
+export function validateWeatherCondition(condition: unknown): WeatherCondition {
+    return weatherConditionSchema.parse(condition);
+}
+
+export function isValidWeatherCondition(condition: unknown): condition is WeatherCondition {
+    return weatherConditionSchema.safeParse(condition).success;
+}
+```
+
+## Environment Validation
+- Always validate environment variables using Zod schemas
+- Cache parsed environment for performance
+- Use coercion for numeric environment variables with `z.coerce.number()`
+- Provide clear error messages for missing required environment variables
