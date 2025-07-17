@@ -1,6 +1,6 @@
 import { WeatherApi, WeatherService as WeatherServiceInterface } from '../interfaces/weather-api.interface';
 import { Coordinates } from '../types/index';
-import { WeatherConditionResult, WeatherCondition } from '../schemas/weather.schema';
+import { WeatherConditionResult } from '../schemas/weather.schema';
 import { OpenMeteoHourlyPoint } from '../schemas/openmeteo.schema';
 
 export interface WeatherConfig {
@@ -83,29 +83,49 @@ export class WeatherService implements WeatherServiceInterface {
     /**
      * Convert Open-Meteo weather code to readable condition
      */
-    private getWeatherCondition(weatherCode: number): { condition: WeatherCondition; description: string } {
+    private getWeatherCondition(weatherCode: number) {
         // Open-Meteo weather codes: https://open-meteo.com/en/docs
         if (weatherCode <= 3) {
-            return { condition: 'clear', description: 'Clear to partly cloudy' };
+            return { condition: 'clear', description: 'Clear to partly cloudy' } as const satisfies Pick<
+                WeatherConditionResult,
+                'condition' | 'description'
+            >;
         } else if (weatherCode <= 48) {
-            return { condition: 'clouds', description: 'Cloudy' };
+            return { condition: 'clouds', description: 'Cloudy' } as const satisfies Pick<
+                WeatherConditionResult,
+                'condition' | 'description'
+            >;
         } else if (weatherCode <= 67) {
-            return { condition: 'rain', description: 'Rainy' };
+            return { condition: 'rain', description: 'Rainy' } as const satisfies Pick<
+                WeatherConditionResult,
+                'condition' | 'description'
+            >;
         } else if (weatherCode <= 77) {
-            return { condition: 'snow', description: 'Snowy' };
+            return { condition: 'snow', description: 'Snowy' } as const satisfies Pick<
+                WeatherConditionResult,
+                'condition' | 'description'
+            >;
         } else if (weatherCode <= 82) {
-            return { condition: 'rain', description: 'Showers' };
+            return { condition: 'rain', description: 'Showers' } as const satisfies Pick<
+                WeatherConditionResult,
+                'condition' | 'description'
+            >;
         } else if (weatherCode <= 99) {
-            return { condition: 'thunderstorm', description: 'Thunderstorm' };
-        } else {
-            return { condition: 'clouds', description: 'Unknown weather' };
+            return { condition: 'thunderstorm', description: 'Thunderstorm' } as const satisfies Pick<
+                WeatherConditionResult,
+                'condition' | 'description'
+            >;
         }
+        return { condition: 'clouds', description: 'Unknown weather' } as const satisfies Pick<
+            WeatherConditionResult,
+            'condition' | 'description'
+        >;
     }
 
     /**
      * Determine if weather conditions are good for outdoor lunch
      */
-    async isWeatherGood(coordinates: Coordinates): Promise<WeatherConditionResult> {
+    async isWeatherGood(coordinates: Coordinates) {
         try {
             const forecast = await this.getNoonForecast(coordinates);
 
@@ -116,7 +136,7 @@ export class WeatherService implements WeatherServiceInterface {
                     description: 'No forecast available',
                     condition: 'clouds',
                     timestamp: Date.now(),
-                };
+                } as const satisfies WeatherConditionResult;
             }
 
             const temperature = Math.round(forecast.temperature_2m);
@@ -132,13 +152,13 @@ export class WeatherService implements WeatherServiceInterface {
 
             const isGood = temperatureGood && conditionGood;
 
-            const result: WeatherConditionResult = {
+            const result = {
                 isGood,
                 temperature,
                 description: weatherInfo.description,
                 condition: weatherInfo.condition,
                 timestamp: new Date(forecast.time).getTime(),
-            };
+            } as const satisfies WeatherConditionResult;
 
             console.log(`Weather assessment for ${coordinates.locationName} at ${this.config.weatherCheckHour}:00:`, {
                 temperature,
