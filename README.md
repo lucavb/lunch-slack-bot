@@ -579,24 +579,26 @@ terraform/                       # Infrastructure as Code
 | `LOCATION_LAT`             | Latitude                   | 48.1351      |
 | `LOCATION_LON`             | Longitude                  | 11.5820      |
 | `AWS_REGION`               | AWS region                 | eu-central-1 |
+| `ENABLE_WEATHER_WARNINGS`  | Enable weather warnings    | false        |
 | `DYNAMODB_TABLE_NAME`      | DynamoDB table name        | Auto-set     |
 | `REPLY_API_URL`            | Reply API endpoint URL     | Auto-set     |
 | `SLACK_CHANNEL`            | Slack channel for messages | "#general"   |
 
 ## 🔧 OpenTofu Variables
 
-| Variable             | Description                               | Default      |
-| -------------------- | ----------------------------------------- | ------------ |
-| `location_name`      | Location name for weather checks          | Munich       |
-| `location_lat`       | Latitude coordinate                       | 48.1351      |
-| `location_lon`       | Longitude coordinate                      | 11.5820      |
-| `min_temperature`    | Minimum temperature for good weather (°C) | 14           |
-| `aws_region`         | AWS region for deployment                 | eu-central-1 |
-| `deployment_suffix`  | Suffix for resource names                 | "" (empty)   |
-| `environment`        | Environment name                          | prod         |
-| `lambda_timeout`     | Lambda timeout in seconds                 | 60           |
-| `lambda_memory`      | Lambda memory in MB                       | 256          |
-| `log_retention_days` | CloudWatch log retention                  | 14           |
+| Variable                  | Description                               | Default      |
+| ------------------------- | ----------------------------------------- | ------------ |
+| `location_name`           | Location name for weather checks          | Munich       |
+| `location_lat`            | Latitude coordinate                       | 48.1351      |
+| `location_lon`            | Longitude coordinate                      | 11.5820      |
+| `min_temperature`         | Minimum temperature for good weather (°C) | 14           |
+| `enable_weather_warnings` | Enable weather warning messages           | false        |
+| `aws_region`              | AWS region for deployment                 | eu-central-1 |
+| `deployment_suffix`       | Suffix for resource names                 | "" (empty)   |
+| `environment`             | Environment name                          | prod         |
+| `lambda_timeout`          | Lambda timeout in seconds                 | 60           |
+| `lambda_memory`           | Lambda memory in MB                       | 256          |
+| `log_retention_days`      | CloudWatch log retention                  | 14           |
 
 ## 📝 License
 

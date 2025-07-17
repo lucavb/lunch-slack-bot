@@ -179,41 +179,48 @@ export const createWeatherCheckHandler = (dependencies: WeatherCheckHandlerDepen
                 messageType = 'weather_reminder';
                 console.log('Sent weather reminder successfully with confirmation link');
             } else {
-                // Check if location has opted in to receive weather warnings
-                const isOptedInForWarnings = await storageService.isOptedInToWeatherWarnings(coordinates.locationName);
-
-                if (!isOptedInForWarnings) {
-                    console.log('Location has not opted in to receive weather warnings, skipping');
+                // Check if weather warnings are enabled globally
+                if (!config.enableWeatherWarnings) {
+                    console.log('Weather warnings are disabled, skipping');
                 } else {
-                    const canSendWarning = await storageService.canSendMessageThisWeek(
-                        coordinates.locationName,
-                        'weather_warning',
-                    );
-                    const alreadySentWarningToday = await storageService.hasMessageBeenSentToday(
-                        'weather_warning',
+                    // Check if location has opted in to receive weather warnings
+                    const isOptedInForWarnings = await storageService.isOptedInToWeatherWarnings(
                         coordinates.locationName,
                     );
 
-                    if (canSendWarning && !alreadySentWarningToday) {
-                        await slackService.sendWeatherWarning(
-                            weatherCondition.temperature,
-                            weatherCondition.description,
+                    if (!isOptedInForWarnings) {
+                        console.log('Location has not opted in to receive weather warnings, skipping');
+                    } else {
+                        const canSendWarning = await storageService.canSendMessageThisWeek(
                             coordinates.locationName,
-                            config.replyApiUrl,
+                            'weather_warning',
                         );
-
-                        await storageService.recordMessageSent(
+                        const alreadySentWarningToday = await storageService.hasMessageBeenSentToday(
                             'weather_warning',
                             coordinates.locationName,
-                            weatherCondition.temperature,
-                            weatherCondition.condition,
                         );
 
-                        messageSent = true;
-                        messageType = 'weather_warning';
-                        console.log('Sent weather warning successfully');
-                    } else {
-                        console.log('Weather warning skipped due to weekly limit or already sent today');
+                        if (canSendWarning && !alreadySentWarningToday) {
+                            await slackService.sendWeatherWarning(
+                                weatherCondition.temperature,
+                                weatherCondition.description,
+                                coordinates.locationName,
+                                config.replyApiUrl,
+                            );
+
+                            await storageService.recordMessageSent(
+                                'weather_warning',
+                                coordinates.locationName,
+                                weatherCondition.temperature,
+                                weatherCondition.condition,
+                            );
+
+                            messageSent = true;
+                            messageType = 'weather_warning';
+                            console.log('Sent weather warning successfully');
+                        } else {
+                            console.log('Weather warning skipped due to weekly limit or already sent today');
+                        }
                     }
                 }
             }

@@ -108,6 +108,18 @@ if [ ! -f "terraform.tfvars" ]; then
     fi
     
     echo ""
+    echo "⚠️  Weather Warnings (Optional):"
+    echo "   Weather warnings notify your team when weather is poor for outdoor lunch."
+    echo "   Most teams don't need this feature."
+    if prompt_yes_no "Enable weather warning messages for bad weather?" "n"; then
+        ENABLE_WEATHER_WARNINGS="true"
+        echo "   ✅ Weather warnings enabled - team members can opt-in via the Reply API"
+    else
+        ENABLE_WEATHER_WARNINGS="false"
+        echo "   ✅ Weather warnings disabled (recommended for most teams)"
+    fi
+    
+    echo ""
     echo "🌐 AWS Settings:"
     AWS_REGION=$(prompt_with_default "AWS region" "eu-central-1")
     
@@ -136,6 +148,7 @@ location_lon  = $LOCATION_LON
 
 # Weather settings
 min_temperature = $MIN_TEMPERATURE
+enable_weather_warnings = $ENABLE_WEATHER_WARNINGS
 
 # Slack settings
 slack_channel = "$SLACK_CHANNEL"

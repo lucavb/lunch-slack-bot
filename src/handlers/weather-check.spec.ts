@@ -221,7 +221,7 @@ describe('Weather Check Handler', () => {
             });
             vi.spyOn(mockStorageService, 'isOptedInToWeatherWarnings').mockResolvedValue(true);
 
-            const event = createMockEvent();
+            const event = createMockEvent({ enableWeatherWarnings: true });
             const result = await handler(event);
 
             expect(result.statusCode).toBe(200);

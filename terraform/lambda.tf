@@ -87,6 +87,7 @@ resource "aws_lambda_function" "weather_check" {
       LOCATION_LAT             = tostring(var.location_lat)
       LOCATION_LON             = tostring(var.location_lon)
       MIN_TEMPERATURE          = tostring(var.min_temperature)
+      ENABLE_WEATHER_WARNINGS  = tostring(var.enable_weather_warnings)
       DYNAMODB_TABLE_NAME      = aws_dynamodb_table.message_tracking.name
       REPLY_API_URL            = "https://${aws_api_gateway_rest_api.lunch_bot.id}.execute-api.${var.aws_region}.amazonaws.com/${var.api_gateway_stage_name}/reply"
       SLACK_CHANNEL            = var.slack_channel

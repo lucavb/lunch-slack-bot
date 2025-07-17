@@ -58,6 +58,12 @@ variable "min_temperature" {
   }
 }
 
+variable "enable_weather_warnings" {
+  description = "Enable weather warning messages for bad weather conditions"
+  type        = bool
+  default     = false
+}
+
 variable "slack_channel" {
   description = "Slack channel identifier for personalized messages (e.g., '#general', '#lunch')"
   type        = string

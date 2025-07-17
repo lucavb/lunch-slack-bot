@@ -13,7 +13,7 @@ import {
 describe('Constants', () => {
     describe('BOT_CONFIG', () => {
         it('should have correct minimum temperature', () => {
-            expect(BOT_CONFIG.minTemperature).toBe(12);
+            expect(BOT_CONFIG.minTemperature).toBe(14);
         });
 
         it('should have good weather conditions', () => {

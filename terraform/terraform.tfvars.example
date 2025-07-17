@@ -17,6 +17,7 @@ location_lon  = 11.5820
 
 # Weather settings
 min_temperature = 14  # Minimum temperature in Celsius to consider weather good for outdoor lunch
+enable_weather_warnings = false  # Set to true to enable weather warning messages for bad weather conditions
 
 # Slack settings
 slack_channel = "#general"  # Channel identifier for personalized messages (e.g., "#general", "#lunch")

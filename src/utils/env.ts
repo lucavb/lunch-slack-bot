@@ -6,6 +6,7 @@ import { SecretsManagerClientImpl } from '../implementations/secrets-manager-cli
 const envSchema = z.object({
     AWS_DEFAULT_REGION: z.string().default('eu-central-1'),
     DYNAMODB_TABLE_NAME: z.string().min(1, 'DYNAMODB_TABLE_NAME is required'),
+    ENABLE_WEATHER_WARNINGS: z.coerce.boolean().default(false),
     LOCATION_LAT: z.coerce.number().pipe(z.number().min(-90).max(90)),
     LOCATION_LON: z.coerce.number().pipe(z.number().min(-180).max(180)),
     LOCATION_NAME: z.string().min(1, 'LOCATION_NAME is required'),
@@ -57,6 +58,7 @@ const getWebhookUrl = async (
 
 export const eventOverridesSchema = z.object({
     badWeatherConditions: z.array(z.string()).optional(),
+    enableWeatherWarnings: z.boolean().optional(),
     goodWeatherConditions: z.array(z.string()).optional(),
     locationLat: z.number().optional(),
     locationLon: z.number().optional(),
@@ -81,6 +83,7 @@ export const getConfig = async (
         awsRegion: env.AWS_DEFAULT_REGION,
         badWeatherConditions: eventOverrides?.badWeatherConditions || BOT_CONFIG.badWeatherConditions,
         dynamodbTableName: env.DYNAMODB_TABLE_NAME,
+        enableWeatherWarnings: eventOverrides?.enableWeatherWarnings ?? env.ENABLE_WEATHER_WARNINGS,
         goodWeatherConditions: eventOverrides?.goodWeatherConditions || BOT_CONFIG.goodWeatherConditions,
         locationLat: eventOverrides?.locationLat || env.LOCATION_LAT,
         locationLon: eventOverrides?.locationLon || env.LOCATION_LON,
