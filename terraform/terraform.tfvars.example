@@ -15,6 +15,9 @@ location_name = "Munich"
 location_lat  = 48.1351
 location_lon  = 11.5820
 
+# Weather settings
+min_temperature = 14  # Minimum temperature in Celsius to consider weather good for outdoor lunch
+
 # Slack settings
 slack_channel = "#general"  # Channel identifier for personalized messages (e.g., "#general", "#lunch")
 

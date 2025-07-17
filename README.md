@@ -7,7 +7,7 @@ A smart serverless weather bot that automatically sends Slack messages when weat
 ## ✨ Features
 
 - **Automatic Weather Monitoring**: Checks weather conditions every weekday at 10 AM CEST
-- **Smart Weather Logic**: Only sends messages when weather is good (>12°C, sunny/cloudy)
+- **Smart Weather Logic**: Only sends messages when weather is good (>14°C, sunny/cloudy)
 - **Weather Warnings**: Optional notifications when weather is poor (opt-in feature)
 - **Rate Limiting**: Maximum 2 messages per week per message type (tracked in DynamoDB)
 - **Reply API Endpoint**: Team members can confirm lunch meetings and manage notification preferences
@@ -98,6 +98,9 @@ If you prefer manual setup:
     location_name = "Munich"
     location_lat  = 48.1351
     location_lon  = 11.5820
+
+    # Weather settings
+    min_temperature = 14  # Minimum temperature for good weather (°C)
 
     # Slack settings
     slack_channel = "#general"  # Channel identifier for personalized messages
@@ -235,7 +238,7 @@ curl -X POST https://[api-id].execute-api.eu-central-1.amazonaws.com/prod/reply 
     "confirmed": true,
     "config": {
         "locationName": "Munich",
-        "minTemperature": 12,
+        "minTemperature": 14,
         "awsRegion": "eu-central-1",
         "slackWebhookUrl": "[REDACTED]"
     }
@@ -287,21 +290,44 @@ curl -X POST https://[api-id].execute-api.eu-central-1.amazonaws.com/prod/reply 
 
 The bot considers weather "good" when:
 
-- Temperature > 12°C at specified hour (default: noon)
+- Temperature > 14°C at specified hour (default: noon)
 - Conditions are sunny or partly cloudy
 - No rain, thunderstorms, or snow
 
 **Weather warnings** are sent when:
 
-- Temperature ≤ 12°C OR bad weather conditions
+- Temperature ≤ 14°C OR bad weather conditions
 - Location has opted in to receive warnings
 - Weekly message limits haven't been exceeded
 
-Override settings at runtime through event parameters or modify defaults in `src/utils/env.ts`:
+### Configurable Minimum Temperature
+
+The minimum temperature threshold is now configurable through:
+
+1. **Terraform variable** (recommended for deployment):
+
+    ```hcl
+    min_temperature = 16  # Set in terraform.tfvars
+    ```
+
+2. **Runtime overrides** (for testing):
+
+    ```json
+    {
+        "overrides": {
+            "minTemperature": 18
+        }
+    }
+    ```
+
+3. **Default**: 14°C (if not specified)
+
+### Other Weather Settings
+
+Override other weather settings at runtime through event parameters:
 
 ```typescript
-// Default weather configuration
-minTemperature: overrides?.minTemperature ?? 12,
+// Available weather configuration overrides
 goodWeatherConditions: overrides?.goodWeatherConditions ?? ['clear', 'clouds'],
 badWeatherConditions: overrides?.badWeatherConditions ?? ['rain', 'drizzle', 'thunderstorm', 'snow'],
 weatherCheckHour: overrides?.weatherCheckHour ?? 12, // Default to noon
@@ -559,17 +585,18 @@ terraform/                       # Infrastructure as Code
 
 ## 🔧 OpenTofu Variables
 
-| Variable             | Description                      | Default      |
-| -------------------- | -------------------------------- | ------------ |
-| `location_name`      | Location name for weather checks | Munich       |
-| `location_lat`       | Latitude coordinate              | 48.1351      |
-| `location_lon`       | Longitude coordinate             | 11.5820      |
-| `aws_region`         | AWS region for deployment        | eu-central-1 |
-| `deployment_suffix`  | Suffix for resource names        | "" (empty)   |
-| `environment`        | Environment name                 | prod         |
-| `lambda_timeout`     | Lambda timeout in seconds        | 60           |
-| `lambda_memory`      | Lambda memory in MB              | 256          |
-| `log_retention_days` | CloudWatch log retention         | 14           |
+| Variable             | Description                               | Default      |
+| -------------------- | ----------------------------------------- | ------------ |
+| `location_name`      | Location name for weather checks          | Munich       |
+| `location_lat`       | Latitude coordinate                       | 48.1351      |
+| `location_lon`       | Longitude coordinate                      | 11.5820      |
+| `min_temperature`    | Minimum temperature for good weather (°C) | 14           |
+| `aws_region`         | AWS region for deployment                 | eu-central-1 |
+| `deployment_suffix`  | Suffix for resource names                 | "" (empty)   |
+| `environment`        | Environment name                          | prod         |
+| `lambda_timeout`     | Lambda timeout in seconds                 | 60           |
+| `lambda_memory`      | Lambda memory in MB                       | 256          |
+| `log_retention_days` | CloudWatch log retention                  | 14           |
 
 ## 📝 License
 

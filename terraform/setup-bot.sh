@@ -99,6 +99,15 @@ if [ ! -f "terraform.tfvars" ]; then
     echo "   Using channel: $SLACK_CHANNEL"
     
     echo ""
+    echo "🌡️  Weather Settings:"
+    MIN_TEMPERATURE=$(prompt_with_default "Minimum temperature for good weather (°C)" "14")
+    # Validate temperature is a number between -50 and 50
+    if ! [[ "$MIN_TEMPERATURE" =~ ^-?[0-9]+$ ]] || [ "$MIN_TEMPERATURE" -lt -50 ] || [ "$MIN_TEMPERATURE" -gt 50 ]; then
+        echo "❌ Minimum temperature must be a number between -50 and 50"
+        exit 1
+    fi
+    
+    echo ""
     echo "🌐 AWS Settings:"
     AWS_REGION=$(prompt_with_default "AWS region" "eu-central-1")
     
@@ -124,6 +133,9 @@ if [ ! -f "terraform.tfvars" ]; then
 location_name = "$LOCATION_NAME"
 location_lat  = $LOCATION_LAT
 location_lon  = $LOCATION_LON
+
+# Weather settings
+min_temperature = $MIN_TEMPERATURE
 
 # Slack settings
 slack_channel = "$SLACK_CHANNEL"

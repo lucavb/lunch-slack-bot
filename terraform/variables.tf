@@ -47,6 +47,17 @@ variable "location_lon" {
   default     = 11.5820
 }
 
+variable "min_temperature" {
+  description = "Minimum temperature in Celsius to consider weather good for outdoor lunch"
+  type        = number
+  default     = 14
+
+  validation {
+    condition     = var.min_temperature >= -50 && var.min_temperature <= 50
+    error_message = "Minimum temperature must be between -50°C and 50°C."
+  }
+}
+
 variable "slack_channel" {
   description = "Slack channel identifier for personalized messages (e.g., '#general', '#lunch')"
   type        = string

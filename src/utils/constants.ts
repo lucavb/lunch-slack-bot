@@ -2,7 +2,7 @@ import { BotConfig } from '../types/index';
 import { validateBotConfig } from '../schemas/weather.schema';
 
 const botConfigData = {
-    minTemperature: 12,
+    minTemperature: 14,
     goodWeatherConditions: ['clear', 'clouds'] as const,
     badWeatherConditions: ['rain', 'drizzle', 'thunderstorm', 'snow'] as const,
     positiveReactions: ['thumbsup', '+1', 'white_check_mark', 'heavy_check_mark', 'tada', 'raised_hands'] as const,
