@@ -54,6 +54,17 @@ describe('Constants', () => {
             expect(message).toContain('sunny');
             expect(message).toContain('🌤️');
             expect(message).toContain('lunch outside');
+            expect(message).toContain('Hey team!');
+        });
+
+        it('should use personalized greeting when slack channel is provided', () => {
+            const message = LUNCH_MESSAGE_TEMPLATE('Munich', 18, 'sunny', undefined, '#lunch');
+
+            expect(message).toContain('Munich');
+            expect(message).toContain('18°C');
+            expect(message).toContain('sunny');
+            expect(message).toContain('🌤️ Hey #lunch!');
+            expect(message).not.toContain('Hey team!');
         });
 
         it('should include confirmation link when provided', () => {
@@ -65,6 +76,19 @@ describe('Constants', () => {
             expect(message).toContain('sunny');
             expect(message).toContain('click here after your lunch meeting');
             expect(message).toContain(confirmationUrl);
+        });
+
+        it('should include confirmation link and personalized greeting when both provided', () => {
+            const confirmationUrl = 'https://api.example.com/reply?action=confirm-lunch&location=Munich';
+            const message = LUNCH_MESSAGE_TEMPLATE('Munich', 18, 'sunny', confirmationUrl, '#general');
+
+            expect(message).toContain('Munich');
+            expect(message).toContain('18°C');
+            expect(message).toContain('sunny');
+            expect(message).toContain('🌤️ Hey #general!');
+            expect(message).toContain('click here after your lunch meeting');
+            expect(message).toContain(confirmationUrl);
+            expect(message).not.toContain('Hey team!');
         });
 
         it('should not include confirmation link when not provided', () => {

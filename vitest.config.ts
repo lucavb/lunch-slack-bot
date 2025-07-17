@@ -21,6 +21,7 @@ export default defineConfig({
             LOCATION_NAME: 'Munich',
             REPLY_API_URL: 'https://api.test.com',
             SLACK_WEBHOOK_SECRET_ARN: 'arn:aws:secretsmanager:eu-central-1:123456789012:secret:test-secret',
+            SLACK_CHANNEL: '#general',
         },
     },
 });

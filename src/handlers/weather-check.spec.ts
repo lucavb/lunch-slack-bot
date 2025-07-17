@@ -176,6 +176,7 @@ describe('Weather Check Handler', () => {
                 'Clear sky',
                 'Munich',
                 expect.stringContaining('confirm-lunch'),
+                '#general',
             );
             expect(mockStorageService.recordMessageSent).toHaveBeenCalledWith(
                 'weather_reminder',

@@ -19,8 +19,10 @@ export const LUNCH_MESSAGE_TEMPLATE = (
     temperature: number,
     description: string,
     confirmationUrl?: string,
+    slackChannel?: string,
 ) => {
-    const baseMessage = `🌤️ Hey team! The weather looks great for lunch outside today!
+    const greeting = slackChannel ? `🌤️ Hey ${slackChannel}!` : '🌤️ Hey team!';
+    const baseMessage = `${greeting} The weather looks great for lunch outside today!
 
 📍 ${location}
 🌡️ ${temperature}°C at noon  

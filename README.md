@@ -99,6 +99,9 @@ If you prefer manual setup:
     location_lat  = 48.1351
     location_lon  = 11.5820
 
+    # Slack settings
+    slack_channel = "#general"  # Channel identifier for personalized messages
+
     # AWS settings
     aws_region = "eu-central-1"
 
@@ -543,15 +546,16 @@ terraform/                       # Infrastructure as Code
 
 ## 🌍 Environment Variables
 
-| Variable                   | Description            | Default      |
-| -------------------------- | ---------------------- | ------------ |
-| `SLACK_WEBHOOK_SECRET_ARN` | Secrets Manager ARN    | Auto-set     |
-| `LOCATION_NAME`            | Location name          | Munich       |
-| `LOCATION_LAT`             | Latitude               | 48.1351      |
-| `LOCATION_LON`             | Longitude              | 11.5820      |
-| `AWS_REGION`               | AWS region             | eu-central-1 |
-| `DYNAMODB_TABLE_NAME`      | DynamoDB table name    | Auto-set     |
-| `REPLY_API_URL`            | Reply API endpoint URL | Auto-set     |
+| Variable                   | Description                | Default      |
+| -------------------------- | -------------------------- | ------------ |
+| `SLACK_WEBHOOK_SECRET_ARN` | Secrets Manager ARN        | Auto-set     |
+| `LOCATION_NAME`            | Location name              | Munich       |
+| `LOCATION_LAT`             | Latitude                   | 48.1351      |
+| `LOCATION_LON`             | Longitude                  | 11.5820      |
+| `AWS_REGION`               | AWS region                 | eu-central-1 |
+| `DYNAMODB_TABLE_NAME`      | DynamoDB table name        | Auto-set     |
+| `REPLY_API_URL`            | Reply API endpoint URL     | Auto-set     |
+| `SLACK_CHANNEL`            | Slack channel for messages | "#general"   |
 
 ## 🔧 OpenTofu Variables
 

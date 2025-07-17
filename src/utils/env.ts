@@ -11,6 +11,7 @@ const envSchema = z.object({
     LOCATION_NAME: z.string().min(1, 'LOCATION_NAME is required'),
     REPLY_API_URL: z.string().url('REPLY_API_URL must be a valid URL'),
     SLACK_WEBHOOK_SECRET_ARN: z.string().min(1, 'SLACK_WEBHOOK_SECRET_ARN is required'),
+    SLACK_CHANNEL: z.string().optional(),
 });
 
 let cachedEnv: z.infer<typeof envSchema> | null = null;
@@ -62,6 +63,7 @@ export const eventOverridesSchema = z.object({
     minTemperature: z.number().optional(),
     slackWebhookUrl: z.url().optional(),
     weatherCheckHour: z.number().optional(),
+    slackChannel: z.string().optional(),
 });
 
 export type EventOverrides = z.infer<typeof eventOverridesSchema>;
@@ -86,6 +88,7 @@ export const getConfig = async (
         replyApiUrl: env.REPLY_API_URL,
         slackWebhookUrl,
         weatherCheckHour: eventOverrides?.weatherCheckHour || NOON_HOUR,
+        slackChannel: eventOverrides?.slackChannel || env.SLACK_CHANNEL,
     };
 };
 

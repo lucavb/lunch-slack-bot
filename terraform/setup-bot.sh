@@ -88,6 +88,17 @@ if [ ! -f "terraform.tfvars" ]; then
     LOCATION_LON=$(prompt_with_default "Longitude" "11.5820")
     
     echo ""
+    echo "💬 Slack Settings:"
+    SLACK_CHANNEL_INPUT=$(prompt_with_default "Slack channel (e.g., general, lunch)" "general")
+    # Add # prefix if not present
+    if [[ "$SLACK_CHANNEL_INPUT" != "#"* ]]; then
+        SLACK_CHANNEL="#$SLACK_CHANNEL_INPUT"
+    else
+        SLACK_CHANNEL="$SLACK_CHANNEL_INPUT"
+    fi
+    echo "   Using channel: $SLACK_CHANNEL"
+    
+    echo ""
     echo "🌐 AWS Settings:"
     AWS_REGION=$(prompt_with_default "AWS region" "eu-central-1")
     
@@ -113,6 +124,9 @@ if [ ! -f "terraform.tfvars" ]; then
 location_name = "$LOCATION_NAME"
 location_lat  = $LOCATION_LAT
 location_lon  = $LOCATION_LON
+
+# Slack settings
+slack_channel = "$SLACK_CHANNEL"
 
 # AWS settings
 aws_region = "$AWS_REGION"

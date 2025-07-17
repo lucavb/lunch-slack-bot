@@ -26,6 +26,7 @@ describe('Environment Utils', () => {
             LOCATION_LON: '11.5820',
             DYNAMODB_TABLE_NAME: 'test-table',
             REPLY_API_URL: 'https://test.execute-api.eu-central-1.amazonaws.com/prod/reply',
+            SLACK_CHANNEL: '#general',
         };
 
         vi.clearAllMocks();
@@ -56,6 +57,7 @@ describe('Environment Utils', () => {
                 goodWeatherConditions: ['clear', 'clouds'],
                 badWeatherConditions: ['rain', 'drizzle', 'thunderstorm', 'snow'],
                 weatherCheckHour: 12,
+                slackChannel: '#general',
             });
         });
 
@@ -69,6 +71,7 @@ describe('Environment Utils', () => {
                 goodWeatherConditions: ['clear'],
                 badWeatherConditions: ['rain'],
                 weatherCheckHour: 14,
+                slackChannel: '#berlin-lunch',
             };
 
             const config = await getConfig(overrides);
@@ -81,6 +84,7 @@ describe('Environment Utils', () => {
             expect(config.goodWeatherConditions).toEqual(['clear']);
             expect(config.badWeatherConditions).toEqual(['rain']);
             expect(config.weatherCheckHour).toBe(14);
+            expect(config.slackChannel).toBe('#berlin-lunch');
         });
 
         it('should cache webhook URL from Secrets Manager', async () => {

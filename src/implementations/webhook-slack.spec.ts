@@ -82,6 +82,18 @@ describe('WebhookSlackServiceImpl', () => {
             expect(payload.text).toContain('Berlin');
         });
 
+        it('should use personalized greeting when slack channel provided', async () => {
+            mockHttpClient.post = vi.fn().mockResolvedValueOnce({});
+
+            await slackService.sendWeatherReminder(18, 'sunny', 'Munich', undefined, '#lunch');
+
+            const call = (mockHttpClient.post as ReturnType<typeof vi.fn>).mock.calls[0];
+            const payload = call[1];
+
+            expect(payload.text).toContain('Hey #lunch!');
+            expect(payload.text).not.toContain('Hey team!');
+        });
+
         it('should include confirmation link when provided', async () => {
             mockHttpClient.post = vi.fn().mockResolvedValueOnce({});
             const confirmationUrl = 'https://api.example.com/reply?action=confirm-lunch&location=Munich';
@@ -93,6 +105,21 @@ describe('WebhookSlackServiceImpl', () => {
 
             expect(payload.text).toContain('click here after your lunch meeting');
             expect(payload.text).toContain(confirmationUrl);
+        });
+
+        it('should include both personalized greeting and confirmation link when both provided', async () => {
+            mockHttpClient.post = vi.fn().mockResolvedValueOnce({});
+            const confirmationUrl = 'https://api.example.com/reply?action=confirm-lunch&location=Munich';
+
+            await slackService.sendWeatherReminder(18, 'sunny', 'Munich', confirmationUrl, '#general');
+
+            const call = (mockHttpClient.post as ReturnType<typeof vi.fn>).mock.calls[0];
+            const payload = call[1];
+
+            expect(payload.text).toContain('Hey #general!');
+            expect(payload.text).toContain('click here after your lunch meeting');
+            expect(payload.text).toContain(confirmationUrl);
+            expect(payload.text).not.toContain('Hey team!');
         });
     });
 

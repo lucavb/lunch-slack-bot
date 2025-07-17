@@ -28,8 +28,15 @@ export class WebhookSlackServiceImpl implements WebhookSlackService {
         description: string,
         locationName: string,
         confirmationUrl?: string,
+        slackChannel?: string,
     ): Promise<void> {
-        const messageText = LUNCH_MESSAGE_TEMPLATE(locationName, temperature, description, confirmationUrl);
+        const messageText = LUNCH_MESSAGE_TEMPLATE(
+            locationName,
+            temperature,
+            description,
+            confirmationUrl,
+            slackChannel,
+        );
 
         const blocks = [
             {

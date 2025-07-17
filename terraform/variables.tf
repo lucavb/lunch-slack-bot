@@ -47,6 +47,12 @@ variable "location_lon" {
   default     = 11.5820
 }
 
+variable "slack_channel" {
+  description = "Slack channel identifier for personalized messages (e.g., '#general', '#lunch')"
+  type        = string
+  default     = ""
+}
+
 variable "lambda_timeout" {
   description = "Lambda function timeout in seconds"
   type        = number

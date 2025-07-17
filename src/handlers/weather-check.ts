@@ -165,6 +165,7 @@ export const createWeatherCheckHandler = (dependencies: WeatherCheckHandlerDepen
                     weatherCondition.description,
                     coordinates.locationName,
                     confirmationUrl,
+                    config.slackChannel,
                 );
 
                 await storageService.recordMessageSent(

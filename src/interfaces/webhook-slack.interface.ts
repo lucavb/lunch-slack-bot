@@ -12,6 +12,7 @@ export interface WebhookSlackService {
         description: string,
         locationName: string,
         confirmationUrl?: string,
+        slackChannel?: string,
     ): Promise<void>;
 
     /**

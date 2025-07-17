@@ -15,6 +15,9 @@ location_name = "Munich"
 location_lat  = 48.1351
 location_lon  = 11.5820
 
+# Slack settings
+slack_channel = "#general"  # Channel identifier for personalized messages (e.g., "#general", "#lunch")
+
 # AWS settings
 aws_region = "eu-central-1"
 
