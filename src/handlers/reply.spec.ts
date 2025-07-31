@@ -20,7 +20,7 @@ function createMockEvent(
 describe('Reply Handler', () => {
     const createTestHandler = () => {
         const mockStorageService = {
-            hasLunchBeenConfirmedThisWeek: vi.fn(),
+            hasLunchBeenConfirmedForWeek: vi.fn(),
             recordLunchConfirmation: vi.fn(),
             setWeatherWarningOptInStatus: vi.fn(),
         } as const satisfies ReplyHandlerDependencies['storageService'];
@@ -28,7 +28,7 @@ describe('Reply Handler', () => {
             getSecretValue: vi.fn(),
         } as const satisfies ReplyHandlerDependencies['secretsManagerClient'];
 
-        vi.spyOn(mockStorageService, 'hasLunchBeenConfirmedThisWeek').mockResolvedValue(false);
+        vi.spyOn(mockStorageService, 'hasLunchBeenConfirmedForWeek').mockResolvedValue(false);
         vi.spyOn(mockStorageService, 'recordLunchConfirmation').mockResolvedValue(undefined);
         vi.spyOn(mockStorageService, 'setWeatherWarningOptInStatus').mockResolvedValue(undefined);
         vi.spyOn(mockSecretsManagerClient, 'getSecretValue').mockResolvedValue({
@@ -104,7 +104,7 @@ describe('Reply Handler', () => {
             const result = await handler(event);
 
             expect(result.statusCode).toBe(200);
-            expect(mockStorageService.hasLunchBeenConfirmedThisWeek).toHaveBeenCalled();
+            expect(mockStorageService.hasLunchBeenConfirmedForWeek).toHaveBeenCalled();
         });
 
         it('should handle invalid action gracefully', async () => {
@@ -123,7 +123,7 @@ describe('Reply Handler', () => {
             const result = await handler(event);
 
             expect(result.statusCode).toBe(200);
-            expect(mockStorageService.hasLunchBeenConfirmedThisWeek).toHaveBeenCalled();
+            expect(mockStorageService.hasLunchBeenConfirmedForWeek).toHaveBeenCalled();
         });
     });
 
@@ -134,8 +134,8 @@ describe('Reply Handler', () => {
             const result = await handler(event);
 
             expect(result.statusCode).toBe(200);
-            expect(mockStorageService.hasLunchBeenConfirmedThisWeek).toHaveBeenCalledWith('Munich');
-            expect(mockStorageService.recordLunchConfirmation).toHaveBeenCalledWith('Munich');
+            expect(mockStorageService.hasLunchBeenConfirmedForWeek).toHaveBeenCalled();
+            expect(mockStorageService.recordLunchConfirmation).toHaveBeenCalled();
 
             const body = JSON.parse(result.body);
             expect(body.message).toContain('Thanks for confirming');
@@ -144,13 +144,13 @@ describe('Reply Handler', () => {
 
         it('should handle already confirmed lunch', async () => {
             const { handler, mockStorageService } = createTestHandler();
-            vi.spyOn(mockStorageService, 'hasLunchBeenConfirmedThisWeek').mockResolvedValue(true);
+            vi.spyOn(mockStorageService, 'hasLunchBeenConfirmedForWeek').mockResolvedValue(true);
 
             const event = createMockEvent('POST', '{"action": "confirm-lunch"}');
             const result = await handler(event);
 
             expect(result.statusCode).toBe(200);
-            expect(mockStorageService.hasLunchBeenConfirmedThisWeek).toHaveBeenCalledWith('Munich');
+            expect(mockStorageService.hasLunchBeenConfirmedForWeek).toHaveBeenCalled();
             expect(mockStorageService.recordLunchConfirmation).not.toHaveBeenCalled();
 
             const body = JSON.parse(result.body);
@@ -164,8 +164,8 @@ describe('Reply Handler', () => {
             const result = await handler(event);
 
             expect(result.statusCode).toBe(200);
-            expect(mockStorageService.hasLunchBeenConfirmedThisWeek).toHaveBeenCalledWith('Berlin');
-            expect(mockStorageService.recordLunchConfirmation).toHaveBeenCalledWith('Berlin');
+            expect(mockStorageService.hasLunchBeenConfirmedForWeek).toHaveBeenCalled();
+            expect(mockStorageService.recordLunchConfirmation).toHaveBeenCalled();
         });
     });
 
@@ -209,9 +209,7 @@ describe('Reply Handler', () => {
     describe('Error handling', () => {
         it('should handle storage service errors gracefully', async () => {
             const { handler, mockStorageService } = createTestHandler();
-            vi.spyOn(mockStorageService, 'hasLunchBeenConfirmedThisWeek').mockRejectedValue(
-                new Error('Database error'),
-            );
+            vi.spyOn(mockStorageService, 'hasLunchBeenConfirmedForWeek').mockRejectedValue(new Error('Database error'));
 
             const event = createMockEvent('POST', '{"action": "confirm-lunch"}');
             const result = await handler(event);

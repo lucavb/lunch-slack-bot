@@ -9,7 +9,7 @@ function createMockEvent(overrides?: unknown) {
 describe('Weather Check Handler', () => {
     const createTestHandler = () => {
         const mockStorageService = {
-            hasLunchBeenConfirmedThisWeek: vi.fn(),
+            hasLunchBeenConfirmedForWeek: vi.fn(),
             hasMessageBeenSentToday: vi.fn(),
             canSendMessageThisWeek: vi.fn(),
             getWeeklyMessageStats: vi.fn(),
@@ -32,7 +32,7 @@ describe('Weather Check Handler', () => {
         } as const satisfies WeatherCheckHandlerDependencies['secretsManagerClient'];
 
         // Set up default mock implementations
-        vi.spyOn(mockStorageService, 'hasLunchBeenConfirmedThisWeek').mockResolvedValue(false);
+        vi.spyOn(mockStorageService, 'hasLunchBeenConfirmedForWeek').mockResolvedValue(false);
         vi.spyOn(mockStorageService, 'hasMessageBeenSentToday').mockResolvedValue(false);
         vi.spyOn(mockStorageService, 'canSendMessageThisWeek').mockResolvedValue(true);
         vi.spyOn(mockStorageService, 'getWeeklyMessageStats').mockResolvedValue({
@@ -86,7 +86,7 @@ describe('Weather Check Handler', () => {
             const result = await handler(event);
 
             expect(result.statusCode).toBe(200);
-            expect(mockStorageService.hasLunchBeenConfirmedThisWeek).toHaveBeenCalledWith('Munich');
+            expect(mockStorageService.hasLunchBeenConfirmedForWeek).toHaveBeenCalledWith('Munich', expect.any(String));
         });
 
         it('should handle valid event with overrides', async () => {
@@ -95,7 +95,7 @@ describe('Weather Check Handler', () => {
             const result = await handler(event);
 
             expect(result.statusCode).toBe(200);
-            expect(mockStorageService.hasLunchBeenConfirmedThisWeek).toHaveBeenCalledWith('Berlin');
+            expect(mockStorageService.hasLunchBeenConfirmedForWeek).toHaveBeenCalledWith('Berlin', expect.any(String));
         });
 
         it('should handle invalid event structure gracefully', async () => {
@@ -113,7 +113,7 @@ describe('Weather Check Handler', () => {
     describe('Early exit conditions', () => {
         it('should skip weather check when lunch already confirmed this week', async () => {
             const { handler, mockStorageService, mockWeatherService } = createTestHandler();
-            vi.spyOn(mockStorageService, 'hasLunchBeenConfirmedThisWeek').mockResolvedValue(true);
+            vi.spyOn(mockStorageService, 'hasLunchBeenConfirmedForWeek').mockResolvedValue(true);
 
             const event = createMockEvent();
             const result = await handler(event);
@@ -313,9 +313,7 @@ describe('Weather Check Handler', () => {
 
         it('should handle storage service errors gracefully', async () => {
             const { handler, mockStorageService } = createTestHandler();
-            vi.spyOn(mockStorageService, 'hasLunchBeenConfirmedThisWeek').mockRejectedValue(
-                new Error('Database error'),
-            );
+            vi.spyOn(mockStorageService, 'hasLunchBeenConfirmedForWeek').mockRejectedValue(new Error('Database error'));
 
             const event = createMockEvent();
             const result = await handler(event);
@@ -356,7 +354,10 @@ describe('Weather Check Handler', () => {
             const result = await handler(event);
 
             expect(result.statusCode).toBe(200);
-            expect(mockStorageService.hasLunchBeenConfirmedThisWeek).toHaveBeenCalledWith('Frankfurt');
+            expect(mockStorageService.hasLunchBeenConfirmedForWeek).toHaveBeenCalledWith(
+                'Frankfurt',
+                expect.any(String),
+            );
 
             const body = JSON.parse(result.body);
             expect(body.location).toBe('Frankfurt');

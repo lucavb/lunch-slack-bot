@@ -39,10 +39,13 @@ Anyone up for a lunch meetup in the park? React with ✅ to communicate with col
 Anyone up for a lunch meetup in the park? React with ✅ if you're interested!`;
 };
 
-export const generateConfirmationUrl = (baseUrl: string, location: string): string => {
+export const generateConfirmationUrl = (baseUrl: string, location: string, date?: string): string => {
     const url = new URL(baseUrl);
     url.searchParams.set('action', 'confirm-lunch');
     url.searchParams.set('location', location);
+    if (date) {
+        url.searchParams.set('date', date);
+    }
     return url.toString();
 };
 

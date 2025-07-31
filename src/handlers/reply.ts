@@ -1,5 +1,6 @@
 import { APIGatewayProxyEvent, APIGatewayProxyHandler } from 'aws-lambda';
 import { z } from 'zod';
+import { format, startOfWeek } from 'date-fns';
 import { getConfig, getCoordinates } from '../utils/env';
 import { DynamoDBStorageService } from '../implementations/dynamodb-storage';
 import { SecretsManagerClientImpl } from '../implementations/secrets-manager-client';
@@ -9,12 +10,13 @@ import { SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
 const replyRequestSchema = z.object({
     action: z.enum(['confirm-lunch', 'opt-in-warnings', 'opt-out-warnings']).default('confirm-lunch'),
     location: z.string().optional(),
+    date: z.string().optional(),
 });
 
 export interface ReplyHandlerDependencies {
     storageService?: Pick<
         DynamoDBStorageService,
-        'hasLunchBeenConfirmedThisWeek' | 'recordLunchConfirmation' | 'setWeatherWarningOptInStatus'
+        'setWeatherWarningOptInStatus' | 'hasLunchBeenConfirmedForWeek' | 'recordLunchConfirmation'
     >;
     secretsManagerClient: Pick<SecretsManagerClientImpl, 'getSecretValue'>;
 }
@@ -78,7 +80,7 @@ export const createReplyHandler = (dependencies: ReplyHandlerDependencies) =>
                 };
             }
 
-            const { action, location: customLocation } = parseResult.data;
+            const { action, location: customLocation, date } = parseResult.data;
 
             const config = await getConfig(undefined, { secretsManagerClientImpl: dependencies.secretsManagerClient });
             const coordinates = await getCoordinates();
@@ -95,16 +97,19 @@ export const createReplyHandler = (dependencies: ReplyHandlerDependencies) =>
                 });
 
             if (action === 'confirm-lunch') {
-                const alreadyConfirmed = await storageService.hasLunchBeenConfirmedThisWeek(locationName);
+                const weekStart = date || format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd');
+
+                const alreadyConfirmed = await storageService.hasLunchBeenConfirmedForWeek(locationName, weekStart);
 
                 if (alreadyConfirmed) {
-                    console.log(`Lunch already confirmed this week for location: ${locationName}`);
+                    console.log(`Lunch already confirmed for week ${weekStart} for location: ${locationName}`);
                     return {
                         statusCode: 200,
                         headers: corsHeaders,
                         body: JSON.stringify({
-                            message: 'Lunch already confirmed this week! No more weather reminders will be sent.',
+                            message: 'Lunch already confirmed for this week! No more weather reminders will be sent.',
                             location: locationName,
+                            weekStart,
                             alreadyConfirmed: true,
                             config: {
                                 ...config,
@@ -114,8 +119,10 @@ export const createReplyHandler = (dependencies: ReplyHandlerDependencies) =>
                     };
                 }
 
-                await storageService.recordLunchConfirmation(locationName);
-                console.log(`Successfully recorded lunch confirmation for location: ${locationName}`);
+                await storageService.recordLunchConfirmation(locationName, weekStart);
+                console.log(
+                    `Successfully recorded lunch confirmation for location: ${locationName} for week ${weekStart}`,
+                );
 
                 return {
                     statusCode: 200,
@@ -125,6 +132,7 @@ export const createReplyHandler = (dependencies: ReplyHandlerDependencies) =>
                             'Thanks for confirming! Lunch confirmed for this week. No more weather reminders will be sent.',
                         action,
                         location: locationName,
+                        weekStart,
                         confirmed: true,
                         config: {
                             ...config,

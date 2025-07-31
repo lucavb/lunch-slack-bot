@@ -198,9 +198,9 @@ export class DynamoDBStorageService implements StorageService {
         }
     }
 
-    async recordLunchConfirmation(location: string): Promise<void> {
+    async recordLunchConfirmation(location: string, specificWeekStart?: string): Promise<void> {
         const now = new Date();
-        const weekStart = this.getWeekStart(now);
+        const weekStart = specificWeekStart || this.getWeekStart(now);
         const timestamp = now.getTime();
         const id = `${location}#lunch_confirmation#${weekStart}`;
         const ttl = Math.floor(Date.now() / 1000) + DYNAMO_TTL_DAYS * 24 * 60 * 60;
@@ -228,9 +228,7 @@ export class DynamoDBStorageService implements StorageService {
         }
     }
 
-    async hasLunchBeenConfirmedThisWeek(location: string): Promise<boolean> {
-        const now = new Date();
-        const weekStart = this.getWeekStart(now);
+    async hasLunchBeenConfirmedForWeek(location: string, weekStart: string): Promise<boolean> {
         const id = `${location}#lunch_confirmation#${weekStart}`;
 
         try {

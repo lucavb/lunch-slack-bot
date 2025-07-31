@@ -56,12 +56,12 @@ export interface StorageService {
     /**
      * Record that the team has confirmed they met for lunch this week
      */
-    recordLunchConfirmation(location: string): Promise<void>;
+    recordLunchConfirmation(location: string, specificWeekStart?: string): Promise<void>;
 
     /**
-     * Check if the team has confirmed they met for lunch this week
+     * Check if the team has confirmed they met for lunch for a specific week
      */
-    hasLunchBeenConfirmedThisWeek(location: string): Promise<boolean>;
+    hasLunchBeenConfirmedForWeek(location: string, weekStart: string): Promise<boolean>;
 
     /**
      * Set opt-in status for weather warning messages for a location

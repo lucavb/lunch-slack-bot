@@ -1,5 +1,6 @@
 import { Handler } from 'aws-lambda';
 import { z } from 'zod';
+import { format, startOfWeek } from 'date-fns';
 import { eventOverridesSchema, getConfig, getCoordinates } from '../utils/env';
 import { FetchHttpClient } from '../implementations/fetch-http-client';
 import { OpenMeteoApi } from '../implementations/openmeteo-api';
@@ -16,7 +17,7 @@ const lambdaEventSchema = z.looseObject({ overrides: eventOverridesSchema.option
 export interface WeatherCheckHandlerDependencies {
     storageService?: Pick<
         DynamoDBStorageService,
-        | 'hasLunchBeenConfirmedThisWeek'
+        | 'hasLunchBeenConfirmedForWeek'
         | 'hasMessageBeenSentToday'
         | 'canSendMessageThisWeek'
         | 'getWeeklyMessageStats'
@@ -88,7 +89,11 @@ export const createWeatherCheckHandler = (dependencies: WeatherCheckHandlerDepen
                     return new WebhookSlackServiceImpl(config.slackWebhookUrl, httpClient);
                 })();
 
-            const lunchConfirmedThisWeek = await storageService.hasLunchBeenConfirmedThisWeek(coordinates.locationName);
+            const weekStart = format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd');
+            const lunchConfirmedThisWeek = await storageService.hasLunchBeenConfirmedForWeek(
+                coordinates.locationName,
+                weekStart,
+            );
 
             if (lunchConfirmedThisWeek) {
                 console.log('Lunch already confirmed this week, skipping weather check');
@@ -158,7 +163,11 @@ export const createWeatherCheckHandler = (dependencies: WeatherCheckHandlerDepen
             let messageType = '';
 
             if (weatherCondition.isGood) {
-                const confirmationUrl = generateConfirmationUrl(config.replyApiUrl, coordinates.locationName);
+                const confirmationUrl = generateConfirmationUrl(
+                    config.replyApiUrl,
+                    coordinates.locationName,
+                    weekStart,
+                );
 
                 await slackService.sendWeatherReminder(
                     weatherCondition.temperature,
@@ -179,11 +188,9 @@ export const createWeatherCheckHandler = (dependencies: WeatherCheckHandlerDepen
                 messageType = 'weather_reminder';
                 console.log('Sent weather reminder successfully with confirmation link');
             } else {
-                // Check if weather warnings are enabled globally
                 if (!config.enableWeatherWarnings) {
                     console.log('Weather warnings are disabled, skipping');
                 } else {
-                    // Check if location has opted in to receive weather warnings
                     const isOptedInForWarnings = await storageService.isOptedInToWeatherWarnings(
                         coordinates.locationName,
                     );
