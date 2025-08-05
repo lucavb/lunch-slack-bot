@@ -3,17 +3,19 @@ import { APIGatewayProxyEvent } from 'aws-lambda';
 import { createReplyHandler, ReplyHandlerDependencies } from './reply';
 import { clearCache } from '../utils/env';
 
-type MockEvent = Pick<APIGatewayProxyEvent, 'httpMethod' | 'body' | 'queryStringParameters'>;
+type MockEvent = Pick<APIGatewayProxyEvent, 'httpMethod' | 'body' | 'queryStringParameters' | 'headers'>;
 
 function createMockEvent(
     httpMethod: string,
     body: string | null = null,
     queryStringParameters: Record<string, string> | null = null,
+    headers: Record<string, string> = {},
 ) {
     return {
         httpMethod,
         body,
         queryStringParameters,
+        headers,
     } as const satisfies MockEvent;
 }
 
@@ -52,10 +54,62 @@ describe('Reply Handler', () => {
         clearCache();
     });
 
+    describe('User agent filtering', () => {
+        it('should block Slack link expanding bot requests', async () => {
+            const { handler } = createTestHandler();
+            const event = createMockEvent(
+                'GET',
+                null,
+                { action: 'confirm-lunch' },
+                { 'User-Agent': 'Slackbot-LinkExpanding 1.0 (+https://api.slack.com/robots)' },
+            );
+            const result = await handler(event);
+
+            expect(result.statusCode).toBe(200);
+            expect(JSON.parse(result.body)).toEqual({ message: 'Bot request blocked' });
+            expect(result.headers).toHaveProperty('Access-Control-Allow-Origin', '*');
+        });
+
+        it('should block requests with case-insensitive user agent header', async () => {
+            const { handler } = createTestHandler();
+            const event = createMockEvent('POST', '{"action": "confirm-lunch"}', null, {
+                'user-agent': 'Slackbot-LinkExpanding 1.0 (+https://api.slack.com/robots)',
+            });
+            const result = await handler(event);
+
+            expect(result.statusCode).toBe(200);
+            expect(JSON.parse(result.body)).toEqual({ message: 'Bot request blocked' });
+        });
+
+        it('should allow normal requests without Slack bot user agent', async () => {
+            const { handler, mockStorageService } = createTestHandler();
+            const event = createMockEvent(
+                'GET',
+                null,
+                { action: 'confirm-lunch' },
+                { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+            );
+            const result = await handler(event);
+
+            expect(result.statusCode).toBe(200);
+            expect(mockStorageService.hasLunchBeenConfirmedForWeek).toHaveBeenCalled();
+            expect(JSON.parse(result.body)).not.toEqual({ message: 'Bot request blocked' });
+        });
+
+        it('should allow requests without headers', async () => {
+            const { handler, mockStorageService } = createTestHandler();
+            const event = createMockEvent('GET', null, { action: 'confirm-lunch' });
+            const result = await handler(event);
+
+            expect(result.statusCode).toBe(200);
+            expect(mockStorageService.hasLunchBeenConfirmedForWeek).toHaveBeenCalled();
+        });
+    });
+
     describe('CORS handling', () => {
         it('should handle OPTIONS requests correctly', async () => {
             const { handler } = createTestHandler();
-            const event = createMockEvent('OPTIONS', null, null);
+            const event = createMockEvent('OPTIONS');
             const result = await handler(event);
 
             expect(result.statusCode).toBe(200);

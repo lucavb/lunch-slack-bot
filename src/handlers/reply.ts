@@ -22,7 +22,7 @@ export interface ReplyHandlerDependencies {
 }
 
 export const createReplyHandler = (dependencies: ReplyHandlerDependencies) =>
-    (async (event: Pick<APIGatewayProxyEvent, 'httpMethod' | 'body' | 'queryStringParameters'>) => {
+    (async (event: Pick<APIGatewayProxyEvent, 'httpMethod' | 'body' | 'queryStringParameters' | 'headers'>) => {
         console.log('Reply handler started', { event });
 
         try {
@@ -31,6 +31,17 @@ export const createReplyHandler = (dependencies: ReplyHandlerDependencies) =>
                 'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
                 'Access-Control-Allow-Origin': '*',
             } as const;
+
+            const userAgent = event.headers?.['User-Agent'] || event.headers?.['user-agent'] || '';
+
+            if (userAgent.includes('Slackbot-LinkExpanding')) {
+                console.log('Blocking Slack link expanding bot request', { userAgent });
+                return {
+                    statusCode: 200,
+                    headers: corsHeaders,
+                    body: JSON.stringify({ message: 'Bot request blocked' }),
+                };
+            }
 
             if (event.httpMethod === 'OPTIONS') {
                 return {
