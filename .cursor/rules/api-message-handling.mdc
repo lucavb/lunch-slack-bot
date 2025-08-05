@@ -1,9 +1,7 @@
 ---
-description: API handling and Slack message formatting patterns
 globs: src/handlers/**/*.ts, src/implementations/*slack*.ts, src/utils/**/*.ts
-alwaysApply: true
+alwaysApply: false
 ---
-
 # API and Message Handling Patterns
 
 ## API Gateway Response Format
