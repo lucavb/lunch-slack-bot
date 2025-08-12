@@ -1,0 +1,99 @@
+{
+    $schema: 'https://docs.renovatebot.com/renovate-schema.json',
+
+    extends: ['config:recommended', 'security:openssf-scorecard', ':semanticCommits', ':dependencyDashboard'],
+
+    timezone: 'Europe/Berlin',
+    labels: ['dependencies'],
+    assignees: ['@me'],
+
+    prHourlyLimit: 2,
+    prConcurrentLimit: 10,
+
+    platformAutomerge: true,
+    automerge: true,
+    automergeType: 'pr',
+    automergeStrategy: 'merge',
+
+    packageRules: [
+        {
+            groupName: 'AWS SDK',
+            matchPackagePatterns: ['^@aws-sdk/'],
+            automerge: false,
+        },
+
+        {
+            groupName: 'TypeScript',
+            matchPackageNames: ['typescript', '@types/node'],
+            automerge: false,
+        },
+
+        {
+            groupName: 'Testing tools',
+            matchPackageNames: ['vitest', '@vitest/ui', 'vitest-environment-*'],
+            automerge: true,
+            automergeType: 'pr',
+        },
+
+        {
+            groupName: 'Code quality tools',
+            matchPackageNames: ['eslint', '@typescript-eslint/*', 'prettier'],
+            automerge: true,
+            automergeType: 'pr',
+        },
+
+        {
+            groupName: 'Build tools',
+            matchPackageNames: ['esbuild'],
+            automerge: true,
+            automergeType: 'pr',
+        },
+
+        {
+            matchDepTypes: ['devDependencies'],
+            matchUpdateTypes: ['patch', 'minor'],
+            automerge: true,
+            automergeType: 'pr',
+        },
+
+        {
+            matchDepTypes: ['dependencies'],
+            matchUpdateTypes: ['patch'],
+            automerge: true,
+            automergeType: 'pr',
+        },
+
+        {
+            matchPackagePatterns: ['*'],
+            matchUpdateTypes: ['patch'],
+            isVulnerabilityAlert: true,
+            automerge: true,
+            automergeType: 'pr',
+            labels: ['security', 'dependencies'],
+        },
+
+        {
+            matchUpdateTypes: ['major'],
+            automerge: false,
+            schedule: ['before 10am on the first day of the month'],
+            labels: ['major-update', 'dependencies'],
+        },
+    ],
+
+    commitMessageTopic: '{{depName}}',
+    commitMessageExtra: 'to {{newVersion}}',
+    commitMessageSuffix: '',
+
+    prBodyTemplate: '{{{header}}}{{{table}}}{{{notes}}}{{{changelogs}}}{{{controls}}}',
+
+    osvVulnerabilityAlerts: true,
+
+    lockFileMaintenance: {
+        enabled: true,
+        schedule: ['before 5am on Monday'],
+        commitMessageAction: 'lock file maintenance',
+        prTitle: 'Lock file maintenance',
+    },
+
+    ignoreDeps: [],
+}
