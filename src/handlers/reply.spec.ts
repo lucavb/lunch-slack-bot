@@ -25,6 +25,7 @@ describe('Reply Handler', () => {
             hasLunchBeenConfirmedForWeek: vi.fn(),
             recordLunchConfirmation: vi.fn(),
             setWeatherWarningOptInStatus: vi.fn(),
+            resetCurrentWeek: vi.fn(),
         } as const satisfies ReplyHandlerDependencies['storageService'];
         const mockSecretsManagerClient = {
             getSecretValue: vi.fn(),
@@ -33,6 +34,7 @@ describe('Reply Handler', () => {
         vi.spyOn(mockStorageService, 'hasLunchBeenConfirmedForWeek').mockResolvedValue(false);
         vi.spyOn(mockStorageService, 'recordLunchConfirmation').mockResolvedValue(undefined);
         vi.spyOn(mockStorageService, 'setWeatherWarningOptInStatus').mockResolvedValue(undefined);
+        vi.spyOn(mockStorageService, 'resetCurrentWeek').mockResolvedValue(undefined);
         vi.spyOn(mockSecretsManagerClient, 'getSecretValue').mockResolvedValue({
             webhook_url: 'https://hooks.slack.com/services/test/webhook/url',
         });
@@ -169,6 +171,7 @@ describe('Reply Handler', () => {
             expect(result.statusCode).toBe(400);
             const body = JSON.parse(result.body);
             expect(body.error).toBe('Invalid request parameters');
+            expect(body.allowedActions).toContain('reset-week');
         });
 
         it('should handle GET requests with query parameters', async () => {
@@ -280,6 +283,91 @@ describe('Reply Handler', () => {
 
             const body = JSON.parse(result.body);
             expect(body.config.slackWebhookUrl).toBe('[REDACTED]');
+        });
+    });
+
+    describe('Week reset functionality', () => {
+        it('should reset current week data', async () => {
+            const { handler, mockStorageService } = createTestHandler();
+            const event = createMockEvent('POST', '{"action": "reset-week"}');
+            const result = await handler(event);
+
+            expect(result.statusCode).toBe(200);
+            expect(mockStorageService.resetCurrentWeek).toHaveBeenCalledWith('Munich');
+
+            const body = JSON.parse(result.body);
+            expect(body.message).toContain('Successfully reset current week data');
+            expect(body.action).toBe('reset-week');
+            expect(body.reset).toBe(true);
+            expect(body.weekStart).toBeDefined();
+        });
+
+        it('should reset current week with custom location', async () => {
+            const { handler, mockStorageService } = createTestHandler();
+            const event = createMockEvent('POST', '{"action": "reset-week", "location": "Hamburg"}');
+            const result = await handler(event);
+
+            expect(result.statusCode).toBe(200);
+            expect(mockStorageService.resetCurrentWeek).toHaveBeenCalledWith('Hamburg');
+
+            const body = JSON.parse(result.body);
+            expect(body.location).toBe('Hamburg');
+        });
+
+        it('should handle reset-week via GET request', async () => {
+            const { handler, mockStorageService } = createTestHandler();
+            const event = createMockEvent('GET', null, { action: 'reset-week' });
+            const result = await handler(event);
+
+            expect(result.statusCode).toBe(200);
+            expect(mockStorageService.resetCurrentWeek).toHaveBeenCalledWith('Munich');
+
+            const body = JSON.parse(result.body);
+            expect(body.reset).toBe(true);
+        });
+
+        it('should handle reset-week storage service errors', async () => {
+            const { handler, mockStorageService } = createTestHandler();
+            vi.spyOn(mockStorageService, 'resetCurrentWeek').mockRejectedValue(new Error('Reset failed'));
+
+            const event = createMockEvent('POST', '{"action": "reset-week"}');
+            const result = await handler(event);
+
+            expect(result.statusCode).toBe(500);
+            expect(mockStorageService.resetCurrentWeek).toHaveBeenCalled();
+
+            const body = JSON.parse(result.body);
+            expect(body.error).toBe('Internal server error');
+        });
+
+        it('should include reset-week in allowed actions for validation errors', async () => {
+            const { handler } = createTestHandler();
+            const event = createMockEvent('POST', '{"action": "invalid-reset-action"}');
+            const result = await handler(event);
+
+            expect(result.statusCode).toBe(400);
+            const body = JSON.parse(result.body);
+            expect(body.allowedActions).toContain('reset-week');
+        });
+
+        it('should redact sensitive config in reset response', async () => {
+            const { handler } = createTestHandler();
+            const event = createMockEvent('POST', '{"action": "reset-week"}');
+            const result = await handler(event);
+
+            expect(result.statusCode).toBe(200);
+            const body = JSON.parse(result.body);
+            expect(body.config.slackWebhookUrl).toBe('[REDACTED]');
+        });
+
+        it('should include correct CORS headers in reset response', async () => {
+            const { handler } = createTestHandler();
+            const event = createMockEvent('POST', '{"action": "reset-week"}');
+            const result = await handler(event);
+
+            expect(result.statusCode).toBe(200);
+            expect(result.headers).toHaveProperty('Access-Control-Allow-Origin', '*');
+            expect(result.headers).toHaveProperty('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
         });
     });
 });

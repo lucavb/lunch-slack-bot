@@ -302,4 +302,56 @@ export class DynamoDBStorageService implements StorageService {
             throw new Error(`Failed to check weather warning opt-in status: ${error}`);
         }
     }
+
+    async resetCurrentWeek(location: string): Promise<void> {
+        const now = new Date();
+        const weekStart = this.getWeekStart(now);
+        const weekEnd = format(endOfWeek(now, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+
+        try {
+            // First, scan for all records for this location in the current week
+            const scanCommand = new ScanCommand({
+                TableName: this.tableName,
+                FilterExpression:
+                    '#location = :location AND (#date >= :weekStart AND #date <= :weekEnd OR #date = :weekStart)',
+                ExpressionAttributeNames: {
+                    '#location': 'location',
+                    '#date': 'date',
+                },
+                ExpressionAttributeValues: marshall({
+                    ':location': location,
+                    ':weekStart': weekStart,
+                    ':weekEnd': weekEnd,
+                }),
+                ProjectionExpression: 'id, messageType',
+            });
+
+            const scanResult = await this.client.send(scanCommand);
+
+            if (!scanResult.Items || scanResult.Items.length === 0) {
+                console.log(`No records found to reset for ${location} in current week`);
+                return;
+            }
+
+            // Delete all found records
+            const deletePromises = scanResult.Items.map(async (item) => {
+                const record = unmarshall(item) as Pick<MessageRecord, 'id' | 'messageType'>;
+                const deleteCommand = new DeleteItemCommand({
+                    TableName: this.tableName,
+                    Key: marshall({ id: record.id }),
+                });
+                return this.client.send(deleteCommand);
+            });
+
+            await Promise.all(deletePromises);
+
+            const recordTypes = scanResult.Items.map((item) => unmarshall(item)['messageType']);
+            console.log(
+                `Reset ${scanResult.Items.length} records for ${location} in week starting ${weekStart}. Types: ${recordTypes.join(', ')}`,
+            );
+        } catch (error) {
+            console.error('Error resetting current week:', error);
+            throw new Error(`Failed to reset current week: ${error}`);
+        }
+    }
 }

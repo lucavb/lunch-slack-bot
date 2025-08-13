@@ -274,4 +274,105 @@ describe('DynamoDBStorageService', () => {
             await expect(storageService.cleanupOldRecords(30)).rejects.toThrow('Failed to cleanup old records');
         });
     });
+
+    describe('resetCurrentWeek', () => {
+        it('should delete all records for the current week', async () => {
+            const mockWeekRecords = [
+                marshall({
+                    id: 'Munich#weather_reminder#2024-01-01',
+                    date: '2024-01-01',
+                    timestamp: 1640995200000,
+                    messageType: 'weather_reminder',
+                    location: 'Munich',
+                    ttl: 1672531200,
+                }),
+                marshall({
+                    id: 'Munich#lunch_confirmation#2024-01-01',
+                    date: '2024-01-01',
+                    timestamp: 1641081600000,
+                    messageType: 'lunch_confirmation',
+                    location: 'Munich',
+                    ttl: 1672617600,
+                }),
+                marshall({
+                    id: 'Munich#weather_warning#2024-01-02',
+                    date: '2024-01-02',
+                    timestamp: 1641168000000,
+                    messageType: 'weather_warning',
+                    location: 'Munich',
+                    ttl: 1672704000,
+                }),
+            ];
+
+            mockClient.send.mockResolvedValueOnce({ Items: mockWeekRecords }).mockResolvedValue({});
+
+            await storageService.resetCurrentWeek('Munich');
+
+            expect(mockClient.send).toHaveBeenCalledTimes(4); // 1 scan + 3 deletes
+
+            // Verify the scan command was called correctly
+            const scanCall = mockClient.send.mock.calls[0][0];
+            expect(scanCall.input.TableName).toBe('test-table');
+            expect(scanCall.input.FilterExpression).toContain('#location = :location');
+            expect(scanCall.input.ExpressionAttributeValues[':location'].S).toBe('Munich');
+
+            // Verify delete commands were called for each record
+            for (let i = 1; i < 4; i++) {
+                const deleteCall = mockClient.send.mock.calls[i][0];
+                expect(deleteCall.input.TableName).toBe('test-table');
+                expect(deleteCall.input.Key).toBeDefined();
+            }
+        });
+
+        it('should handle no records found for current week', async () => {
+            mockClient.send.mockResolvedValueOnce({ Items: [] });
+
+            await storageService.resetCurrentWeek('Munich');
+
+            expect(mockClient.send).toHaveBeenCalledTimes(1); // Only scan, no deletes
+        });
+
+        it('should handle undefined items in scan result', async () => {
+            mockClient.send.mockResolvedValueOnce({ Items: undefined });
+
+            await storageService.resetCurrentWeek('Munich');
+
+            expect(mockClient.send).toHaveBeenCalledTimes(1); // Only scan, no deletes
+        });
+
+        it('should throw error on scan failure', async () => {
+            mockClient.send.mockRejectedValueOnce(new Error('DynamoDB scan error'));
+
+            await expect(storageService.resetCurrentWeek('Munich')).rejects.toThrow('Failed to reset current week');
+        });
+
+        it('should throw error on delete failure', async () => {
+            const mockWeekRecords = [
+                marshall({
+                    id: 'Munich#weather_reminder#2024-01-01',
+                    date: '2024-01-01',
+                    timestamp: 1640995200000,
+                    messageType: 'weather_reminder',
+                    location: 'Munich',
+                    ttl: 1672531200,
+                }),
+            ];
+
+            mockClient.send
+                .mockResolvedValueOnce({ Items: mockWeekRecords })
+                .mockRejectedValueOnce(new Error('DynamoDB delete error'));
+
+            await expect(storageService.resetCurrentWeek('Munich')).rejects.toThrow('Failed to reset current week');
+        });
+
+        it('should correctly filter records by location and current week', async () => {
+            mockClient.send.mockResolvedValueOnce({ Items: [] });
+
+            await storageService.resetCurrentWeek('Berlin');
+
+            // Verify the scan was called with correct location parameter
+            const scanCall = mockClient.send.mock.calls[0][0];
+            expect(scanCall.input.ExpressionAttributeValues[':location'].S).toBe('Berlin');
+        });
+    });
 });

@@ -72,4 +72,10 @@ export interface StorageService {
      * Check if a location has opted in to receive weather warning messages
      */
     isOptedInToWeatherWarnings(location: string): Promise<boolean>;
+
+    /**
+     * Reset all messages and confirmations for the current week for a location
+     * This allows the system to start sending messages again
+     */
+    resetCurrentWeek(location: string): Promise<void>;
 }

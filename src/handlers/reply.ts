@@ -8,7 +8,7 @@ import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
 
 const replyRequestSchema = z.object({
-    action: z.enum(['confirm-lunch', 'opt-in-warnings', 'opt-out-warnings']).default('confirm-lunch'),
+    action: z.enum(['confirm-lunch', 'opt-in-warnings', 'opt-out-warnings', 'reset-week']).default('confirm-lunch'),
     location: z.string().optional(),
     date: z.string().optional(),
 });
@@ -16,7 +16,7 @@ const replyRequestSchema = z.object({
 export interface ReplyHandlerDependencies {
     storageService?: Pick<
         DynamoDBStorageService,
-        'setWeatherWarningOptInStatus' | 'hasLunchBeenConfirmedForWeek' | 'recordLunchConfirmation'
+        'setWeatherWarningOptInStatus' | 'hasLunchBeenConfirmedForWeek' | 'recordLunchConfirmation' | 'resetCurrentWeek'
     >;
     secretsManagerClient: Pick<SecretsManagerClientImpl, 'getSecretValue'>;
 }
@@ -86,7 +86,7 @@ export const createReplyHandler = (dependencies: ReplyHandlerDependencies) =>
                     body: JSON.stringify({
                         error: 'Invalid request parameters',
                         details: parseResult.error.issues,
-                        allowedActions: ['confirm-lunch', 'opt-in-warnings', 'opt-out-warnings'],
+                        allowedActions: ['confirm-lunch', 'opt-in-warnings', 'opt-out-warnings', 'reset-week'],
                     }),
                 };
             }
@@ -195,13 +195,35 @@ export const createReplyHandler = (dependencies: ReplyHandlerDependencies) =>
                 };
             }
 
+            if (action === 'reset-week') {
+                await storageService.resetCurrentWeek(locationName);
+                console.log(`Successfully reset current week data for location: ${locationName}`);
+
+                return {
+                    statusCode: 200,
+                    headers: corsHeaders,
+                    body: JSON.stringify({
+                        message:
+                            'Successfully reset current week data. The system will now start sending weather reminders again.',
+                        action,
+                        location: locationName,
+                        weekStart: format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd'),
+                        reset: true,
+                        config: {
+                            ...config,
+                            slackWebhookUrl: '[REDACTED]',
+                        },
+                    }),
+                };
+            }
+
             return {
                 statusCode: 400,
                 headers: corsHeaders,
                 body: JSON.stringify({
                     error: 'Unknown action',
                     providedAction: action,
-                    allowedActions: ['confirm-lunch', 'opt-in-warnings', 'opt-out-warnings'],
+                    allowedActions: ['confirm-lunch', 'opt-in-warnings', 'opt-out-warnings', 'reset-week'],
                 }),
             };
         } catch (error) {
