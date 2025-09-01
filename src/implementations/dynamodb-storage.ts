@@ -309,32 +309,43 @@ export class DynamoDBStorageService implements StorageService {
         const weekEnd = format(endOfWeek(now, { weekStartsOn: 1 }), 'yyyy-MM-dd');
 
         try {
-            // First, scan for all records for this location in the current week
+            // First, scan for all records in the current week and filter for location case-insensitively
             const scanCommand = new ScanCommand({
                 TableName: this.tableName,
-                FilterExpression:
-                    '#location = :location AND (#date >= :weekStart AND #date <= :weekEnd OR #date = :weekStart)',
+                FilterExpression: '#date >= :weekStart AND #date <= :weekEnd',
                 ExpressionAttributeNames: {
                     '#location': 'location',
                     '#date': 'date',
                 },
                 ExpressionAttributeValues: marshall({
-                    ':location': location,
                     ':weekStart': weekStart,
                     ':weekEnd': weekEnd,
                 }),
-                ProjectionExpression: 'id, messageType',
+                ProjectionExpression: 'id, messageType, #location',
             });
 
             const scanResult = await this.client.send(scanCommand);
 
             if (!scanResult.Items || scanResult.Items.length === 0) {
-                console.log(`No records found to reset for ${location} in current week`);
+                console.log(`No records found in current week (${weekStart} to ${weekEnd})`);
                 return;
             }
 
-            // Delete all found records
-            const deletePromises = scanResult.Items.map(async (item) => {
+            // Filter results for case-insensitive location match
+            const locationMatches = scanResult.Items.filter((item) => {
+                const record = unmarshall(item) as Pick<MessageRecord, 'location'>;
+                return record.location.toLowerCase() === location.toLowerCase();
+            });
+
+            if (locationMatches.length === 0) {
+                console.log(
+                    `No records found to reset for ${location} (case-insensitive) in current week (${weekStart} to ${weekEnd})`,
+                );
+                return;
+            }
+
+            // Delete all matching records
+            const deletePromises = locationMatches.map(async (item) => {
                 const record = unmarshall(item) as Pick<MessageRecord, 'id' | 'messageType'>;
                 const deleteCommand = new DeleteItemCommand({
                     TableName: this.tableName,
@@ -345,9 +356,11 @@ export class DynamoDBStorageService implements StorageService {
 
             await Promise.all(deletePromises);
 
-            const recordTypes = scanResult.Items.map((item) => unmarshall(item)['messageType']);
+            const recordTypes = locationMatches.map((item) => unmarshall(item)['messageType']);
+            const actualLocation =
+                locationMatches.length > 0 ? (unmarshall(locationMatches[0]) as MessageRecord).location : location;
             console.log(
-                `Reset ${scanResult.Items.length} records for ${location} in week starting ${weekStart}. Types: ${recordTypes.join(', ')}`,
+                `Reset ${locationMatches.length} records for ${actualLocation} in week starting ${weekStart}. Types: ${recordTypes.join(', ')}`,
             );
         } catch (error) {
             console.error('Error resetting current week:', error);

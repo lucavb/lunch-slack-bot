@@ -313,8 +313,9 @@ describe('DynamoDBStorageService', () => {
             // Verify the scan command was called correctly
             const scanCall = mockClient.send.mock.calls[0][0];
             expect(scanCall.input.TableName).toBe('test-table');
-            expect(scanCall.input.FilterExpression).toContain('#location = :location');
-            expect(scanCall.input.ExpressionAttributeValues[':location'].S).toBe('Munich');
+            expect(scanCall.input.FilterExpression).toContain('#date >= :weekStart AND #date <= :weekEnd');
+            expect(scanCall.input.ExpressionAttributeValues[':weekStart']).toBeDefined();
+            expect(scanCall.input.ExpressionAttributeValues[':weekEnd']).toBeDefined();
 
             // Verify delete commands were called for each record
             for (let i = 1; i < 4; i++) {
@@ -365,14 +366,45 @@ describe('DynamoDBStorageService', () => {
             await expect(storageService.resetCurrentWeek('Munich')).rejects.toThrow('Failed to reset current week');
         });
 
-        it('should correctly filter records by location and current week', async () => {
+        it('should correctly filter records by current week', async () => {
             mockClient.send.mockResolvedValueOnce({ Items: [] });
 
             await storageService.resetCurrentWeek('Berlin');
 
-            // Verify the scan was called with correct location parameter
+            // Verify the scan was called with correct date filter
             const scanCall = mockClient.send.mock.calls[0][0];
-            expect(scanCall.input.ExpressionAttributeValues[':location'].S).toBe('Berlin');
+            expect(scanCall.input.FilterExpression).toContain('#date >= :weekStart AND #date <= :weekEnd');
+        });
+
+        it('should handle case-insensitive location matching', async () => {
+            const mockWeekRecords = [
+                marshall({
+                    id: 'Giesing#weather_reminder#2024-01-01',
+                    date: '2024-01-01',
+                    timestamp: 1640995200000,
+                    messageType: 'weather_reminder',
+                    location: 'Giesing',
+                    ttl: 1672531200,
+                }),
+                marshall({
+                    id: 'Munich#weather_reminder#2024-01-01',
+                    date: '2024-01-01',
+                    timestamp: 1640995200000,
+                    messageType: 'weather_reminder',
+                    location: 'Munich',
+                    ttl: 1672531200,
+                }),
+            ];
+
+            mockClient.send.mockResolvedValueOnce({ Items: mockWeekRecords }).mockResolvedValue({});
+
+            await storageService.resetCurrentWeek('giesing'); // lowercase input
+
+            expect(mockClient.send).toHaveBeenCalledTimes(2); // 1 scan + 1 delete (only Giesing record)
+
+            // Verify only the Giesing record was deleted (case-insensitive match)
+            const deleteCall = mockClient.send.mock.calls[1][0];
+            expect(deleteCall.input.Key['id'].S).toBe('Giesing#weather_reminder#2024-01-01');
         });
     });
 });
