@@ -55,7 +55,7 @@ describe('Environment Utils', () => {
                 replyApiUrl: 'https://test.execute-api.eu-central-1.amazonaws.com/prod/reply',
                 minTemperature: 14,
                 enableWeatherWarnings: false,
-                goodWeatherConditions: ['clear', 'clouds'],
+                goodWeatherConditions: ['clear', 'partly-cloudy'],
                 badWeatherConditions: ['rain', 'drizzle', 'thunderstorm', 'snow'],
                 weatherCheckHour: 12,
                 slackChannel: '#general',

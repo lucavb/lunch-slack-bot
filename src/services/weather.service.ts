@@ -85,8 +85,18 @@ export class WeatherService implements WeatherServiceInterface {
      */
     private getWeatherCondition(weatherCode: number) {
         // Open-Meteo weather codes: https://open-meteo.com/en/docs
-        if (weatherCode <= 3) {
-            return { condition: 'clear', description: 'Clear to partly cloudy' } as const satisfies Pick<
+        if (weatherCode <= 1) {
+            return { condition: 'clear', description: 'Clear to mainly clear' } as const satisfies Pick<
+                WeatherConditionResult,
+                'condition' | 'description'
+            >;
+        } else if (weatherCode === 2) {
+            return { condition: 'partly-cloudy', description: 'Partly cloudy' } as const satisfies Pick<
+                WeatherConditionResult,
+                'condition' | 'description'
+            >;
+        } else if (weatherCode === 3) {
+            return { condition: 'clouds', description: 'Overcast' } as const satisfies Pick<
                 WeatherConditionResult,
                 'condition' | 'description'
             >;

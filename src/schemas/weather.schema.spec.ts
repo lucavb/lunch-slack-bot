@@ -27,7 +27,7 @@ describe('Weather Schema', () => {
 
         it('should be a readonly array', () => {
             expect(WEATHER_CONDITIONS).toBeInstanceOf(Array);
-            expect(WEATHER_CONDITIONS.length).toBe(6);
+            expect(WEATHER_CONDITIONS.length).toBe(7);
         });
     });
 
@@ -79,7 +79,7 @@ describe('Weather Schema', () => {
         it('should validate valid bot configuration', () => {
             const validConfig = {
                 minTemperature: 12,
-                goodWeatherConditions: ['clear', 'clouds'],
+                goodWeatherConditions: ['clear', 'partly-cloudy'],
                 badWeatherConditions: ['rain', 'snow'],
                 positiveReactions: ['thumbsup', '+1'],
                 minReactionsForAcceptance: 2,
@@ -178,7 +178,7 @@ describe('Weather Schema', () => {
         it('should validate proper bot configuration', () => {
             const config = {
                 minTemperature: 12,
-                goodWeatherConditions: ['clear', 'clouds'],
+                goodWeatherConditions: ['clear', 'partly-cloudy'],
                 badWeatherConditions: ['rain', 'snow'],
                 positiveReactions: ['thumbsup', '+1'],
                 minReactionsForAcceptance: 2,

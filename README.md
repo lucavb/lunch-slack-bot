@@ -291,7 +291,7 @@ curl -X POST https://[api-id].execute-api.eu-central-1.amazonaws.com/prod/reply 
 The bot considers weather "good" when:
 
 - Temperature > 14°C at specified hour (default: noon)
-- Conditions are sunny or partly cloudy
+- Conditions are clear or partly cloudy (not overcast or heavily cloudy)
 - No rain, thunderstorms, or snow
 
 **Weather warnings** are sent when:
@@ -328,7 +328,7 @@ Override other weather settings at runtime through event parameters:
 
 ```typescript
 // Available weather configuration overrides
-goodWeatherConditions: overrides?.goodWeatherConditions ?? ['clear', 'clouds'],
+goodWeatherConditions: overrides?.goodWeatherConditions ?? ['clear', 'partly-cloudy'],
 badWeatherConditions: overrides?.badWeatherConditions ?? ['rain', 'drizzle', 'thunderstorm', 'snow'],
 weatherCheckHour: overrides?.weatherCheckHour ?? 12, // Default to noon
 ```
@@ -372,7 +372,7 @@ All parameters are optional and fall back to defaults if not provided:
         "locationLon": 13.405,
         "dynamodbTableName": "my-custom-table",
         "minTemperature": 15,
-        "goodWeatherConditions": ["clear", "clouds"],
+        "goodWeatherConditions": ["clear", "partly-cloudy"],
         "badWeatherConditions": ["rain", "drizzle", "snow"],
         "weatherCheckHour": 14
     }
@@ -399,7 +399,7 @@ All parameters are optional and fall back to defaults if not provided:
 {
     "overrides": {
         "minTemperature": 8,
-        "goodWeatherConditions": ["clear", "clouds", "rain"],
+        "goodWeatherConditions": ["clear", "partly-cloudy", "rain"],
         "badWeatherConditions": ["thunderstorm", "snow"]
     }
 }

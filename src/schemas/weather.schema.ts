@@ -1,11 +1,20 @@
 import { z } from 'zod';
 
-export const WEATHER_CONDITIONS = ['clear', 'clouds', 'rain', 'drizzle', 'snow', 'thunderstorm'] as const;
+export const WEATHER_CONDITIONS = [
+    'clear',
+    'partly-cloudy',
+    'clouds',
+    'rain',
+    'drizzle',
+    'snow',
+    'thunderstorm',
+] as const;
 
 export const VALID_WEATHER_CONDITIONS = WEATHER_CONDITIONS;
 
 export const WEATHER_CONDITION_EMOJIS = {
     clear: '☀️',
+    'partly-cloudy': '⛅',
     clouds: '☁️',
     rain: '🌧️',
     drizzle: '🌦️',

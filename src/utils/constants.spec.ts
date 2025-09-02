@@ -17,7 +17,7 @@ describe('Constants', () => {
         });
 
         it('should have good weather conditions', () => {
-            expect(BOT_CONFIG.goodWeatherConditions).toEqual(['clear', 'clouds']);
+            expect(BOT_CONFIG.goodWeatherConditions).toEqual(['clear', 'partly-cloudy']);
         });
 
         it('should have bad weather conditions', () => {
