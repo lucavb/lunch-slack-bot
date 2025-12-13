@@ -1,99 +1,86 @@
 {
-    $schema: 'https://docs.renovatebot.com/renovate-schema.json',
-
-    extends: ['config:recommended', 'security:openssf-scorecard', ':semanticCommits', ':dependencyDashboard'],
-
-    timezone: 'Europe/Berlin',
-    labels: ['dependencies'],
-    assignees: ['@me'],
-
+    $schema: "https://docs.renovatebot.com/renovate-schema.json",
+    extends: [
+        "config:recommended",
+        "security:openssf-scorecard",
+        ":semanticCommits",
+        ":dependencyDashboard",
+    ],
+    timezone: "Europe/Berlin",
+    labels: ["dependencies"],
+    assignees: ["@me"],
     prHourlyLimit: 2,
     prConcurrentLimit: 10,
-
     platformAutomerge: true,
     automerge: true,
-    automergeType: 'pr',
-    automergeStrategy: 'merge',
-
+    automergeType: "pr",
+    automergeStrategy: "merge",
     packageRules: [
         {
-            groupName: 'AWS SDK',
-            matchPackagePatterns: ['^@aws-sdk/'],
+            groupName: "AWS SDK",
+            automerge: false,
+            matchPackageNames: ["/^@aws-sdk//"],
+        },
+        {
+            groupName: "TypeScript",
+            matchPackageNames: ["typescript", "@types/node"],
             automerge: false,
         },
-
         {
-            groupName: 'TypeScript',
-            matchPackageNames: ['typescript', '@types/node'],
-            automerge: false,
-        },
-
-        {
-            groupName: 'Testing tools',
-            matchPackageNames: ['vitest', '@vitest/ui', 'vitest-environment-*'],
+            groupName: "Testing tools",
+            matchPackageNames: ["vitest", "@vitest/ui", "vitest-environment-*"],
             automerge: true,
-            automergeType: 'pr',
+            automergeType: "pr",
         },
-
         {
-            groupName: 'Code quality tools',
-            matchPackageNames: ['eslint', '@typescript-eslint/*', 'prettier'],
+            groupName: "Code quality tools",
+            matchPackageNames: ["eslint", "@typescript-eslint/*", "prettier"],
             automerge: true,
-            automergeType: 'pr',
+            automergeType: "pr",
         },
-
         {
-            groupName: 'Build tools',
-            matchPackageNames: ['esbuild'],
+            groupName: "Build tools",
+            matchPackageNames: ["esbuild"],
             automerge: true,
-            automergeType: 'pr',
+            automergeType: "pr",
         },
-
         {
-            matchDepTypes: ['devDependencies'],
-            matchUpdateTypes: ['patch', 'minor'],
+            matchDepTypes: ["devDependencies"],
+            matchUpdateTypes: ["patch", "minor"],
             automerge: true,
-            automergeType: 'pr',
+            automergeType: "pr",
         },
-
         {
-            matchDepTypes: ['dependencies'],
-            matchUpdateTypes: ['patch'],
+            matchDepTypes: ["dependencies"],
+            matchUpdateTypes: ["patch"],
             automerge: true,
-            automergeType: 'pr',
+            automergeType: "pr",
         },
-
         {
-            matchPackagePatterns: ['*'],
-            matchUpdateTypes: ['patch'],
+            matchUpdateTypes: ["patch"],
             isVulnerabilityAlert: true,
             automerge: true,
-            automergeType: 'pr',
-            labels: ['security', 'dependencies'],
+            automergeType: "pr",
+            labels: ["security", "dependencies"],
+            matchPackageNames: ["*"],
         },
-
         {
-            matchUpdateTypes: ['major'],
+            matchUpdateTypes: ["major"],
             automerge: false,
-            schedule: ['before 10am on the first day of the month'],
-            labels: ['major-update', 'dependencies'],
+            schedule: ["before 10am on the first day of the month"],
+            labels: ["major-update", "dependencies"],
         },
     ],
-
-    commitMessageTopic: '{{depName}}',
-    commitMessageExtra: 'to {{newVersion}}',
-    commitMessageSuffix: '',
-
-    prBodyTemplate: '{{{header}}}{{{table}}}{{{notes}}}{{{changelogs}}}{{{controls}}}',
-
+    commitMessageTopic: "{{depName}}",
+    commitMessageExtra: "to {{newVersion}}",
+    commitMessageSuffix: "",
+    prBodyTemplate: "{{{header}}}{{{table}}}{{{notes}}}{{{changelogs}}}{{{controls}}}",
     osvVulnerabilityAlerts: true,
-
     lockFileMaintenance: {
         enabled: true,
-        schedule: ['before 5am on Monday'],
-        commitMessageAction: 'lock file maintenance',
-        prTitle: 'Lock file maintenance',
+        schedule: ["before 5am on Monday"],
+        commitMessageAction: "lock file maintenance",
+        prTitle: "Lock file maintenance",
     },
-
     ignoreDeps: [],
 }
