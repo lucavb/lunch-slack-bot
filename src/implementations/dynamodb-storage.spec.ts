@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { marshall } from '@aws-sdk/util-dynamodb';
+import type { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBStorageService } from './dynamodb-storage';
 
 describe('DynamoDBStorageService', () => {
@@ -9,7 +10,10 @@ describe('DynamoDBStorageService', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         mockClient = { send: vi.fn() };
-        storageService = new DynamoDBStorageService({ tableName: 'test-table', client: mockClient });
+        storageService = new DynamoDBStorageService({
+            tableName: 'test-table',
+            client: mockClient as unknown as Pick<DynamoDBClient, 'send'>,
+        });
     });
 
     describe('hasMessageBeenSentToday', () => {

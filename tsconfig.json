@@ -24,7 +24,7 @@
         "exactOptionalPropertyTypes": true,
         "noImplicitOverride": true,
         "noPropertyAccessFromIndexSignature": true,
-        "types": ["vitest/globals"]
+        "types": ["vitest/globals", "node"]
     },
     "include": ["src/**/*", "**/*.test.ts", "**/*.spec.ts"],
     "exclude": ["node_modules", "dist", "terraform"]

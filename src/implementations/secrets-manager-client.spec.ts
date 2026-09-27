@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
+import type { SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
 import { SecretsManagerClientImpl } from './secrets-manager-client';
 
 describe('SecretsManagerClientImpl', () => {
@@ -8,7 +9,9 @@ describe('SecretsManagerClientImpl', () => {
 
     beforeEach(() => {
         mockSecretsManagerClient = { send: vi.fn() };
-        client = new SecretsManagerClientImpl(mockSecretsManagerClient);
+        client = new SecretsManagerClientImpl(
+            mockSecretsManagerClient as unknown as Pick<SecretsManagerClient, 'send'>,
+        );
     });
 
     describe('getSecretValue', () => {

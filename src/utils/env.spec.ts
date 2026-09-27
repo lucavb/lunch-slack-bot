@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { clearCache, getConfig, getCoordinates } from './env';
 
-const mockGetSecretValue = vi.fn();
+const mockGetSecretValue = vi.hoisted(() => vi.fn());
 vi.mock('../implementations/secrets-manager-client', () => ({
-    SecretsManagerClientImpl: vi.fn(() => ({
-        getSecretValue: mockGetSecretValue,
-    })),
+    SecretsManagerClientImpl: vi.fn().mockImplementation(function () {
+        return { getSecretValue: mockGetSecretValue };
+    }),
 }));
 
 vi.mock('@aws-sdk/client-secrets-manager', () => ({

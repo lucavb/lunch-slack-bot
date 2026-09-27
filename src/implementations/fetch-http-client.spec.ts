@@ -32,7 +32,7 @@ describe('FetchHttpClient', () => {
 
     beforeEach(() => {
         mockFetch = vi.fn();
-        httpClient = new FetchHttpClient(mockFetch);
+        httpClient = new FetchHttpClient(mockFetch as unknown as typeof fetch);
     });
 
     describe('get', () => {
