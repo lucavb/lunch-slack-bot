@@ -550,7 +550,7 @@ src/
 │   ├── weather.schema.ts       # Weather data validation
 │   └── openmeteo.schema.ts     # OpenMeteo API response validation
 ├── services/                    # Business logic
-│   └── weather.service.ts      # Weather processing logic
+│   └── weather-decision.ts     # WeatherDecision: decides whether the weather invites outdoor lunch
 ├── types/                       # TypeScript type definitions
 │   └── index.ts                # Common types
 └── utils/                       # Utility functions

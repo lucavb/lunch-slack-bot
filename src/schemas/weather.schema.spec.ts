@@ -1,36 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
     botConfigSchema,
-    isBadWeatherCondition,
-    isGoodWeatherCondition,
-    isWeatherCondition,
     POSITIVE_REACTIONS,
     positiveReactionSchema,
     validateBotConfig,
-    validateWeatherCondition,
-    validateWeatherConditionResult,
-    WEATHER_CONDITIONS,
-    weatherConditionResultSchema,
     weatherConditionSchema,
 } from './weather.schema';
 
 describe('Weather Schema', () => {
-    describe('WEATHER_CONDITIONS', () => {
-        it('should contain all expected weather conditions', () => {
-            expect(WEATHER_CONDITIONS).toContain('clear');
-            expect(WEATHER_CONDITIONS).toContain('clouds');
-            expect(WEATHER_CONDITIONS).toContain('rain');
-            expect(WEATHER_CONDITIONS).toContain('drizzle');
-            expect(WEATHER_CONDITIONS).toContain('thunderstorm');
-            expect(WEATHER_CONDITIONS).toContain('snow');
-        });
-
-        it('should be a readonly array', () => {
-            expect(WEATHER_CONDITIONS).toBeInstanceOf(Array);
-            expect(WEATHER_CONDITIONS.length).toBe(7);
-        });
-    });
-
     describe('POSITIVE_REACTIONS', () => {
         it('should contain all expected positive reactions', () => {
             expect(POSITIVE_REACTIONS).toContain('thumbsup');
@@ -126,54 +103,6 @@ describe('Weather Schema', () => {
         });
     });
 
-    describe('weatherConditionResultSchema', () => {
-        it('should validate valid weather condition result', () => {
-            const validResult = {
-                condition: 'clear',
-                temperature: 18,
-                description: 'clear sky',
-                isGood: true,
-                timestamp: 1234567890,
-            };
-
-            const result = weatherConditionResultSchema.parse(validResult);
-            expect(result).toEqual(validResult);
-        });
-
-        it('should reject invalid weather condition result', () => {
-            expect(() =>
-                weatherConditionResultSchema.parse({
-                    isGood: true,
-                    temperature: 18,
-                }),
-            ).toThrow();
-
-            expect(() =>
-                weatherConditionResultSchema.parse({
-                    condition: 'clear',
-                    temperature: 18,
-                    description: 'clear sky',
-                    isGood: 'true',
-                    timestamp: 1234567890,
-                }),
-            ).toThrow();
-        });
-    });
-
-    describe('validateWeatherCondition', () => {
-        it('should validate weather conditions', () => {
-            expect(validateWeatherCondition('clear')).toBe('clear');
-            expect(validateWeatherCondition('rain')).toBe('rain');
-            expect(validateWeatherCondition('snow')).toBe('snow');
-        });
-
-        it('should throw for invalid weather conditions', () => {
-            expect(() => validateWeatherCondition('invalid')).toThrow();
-            expect(() => validateWeatherCondition('sunny')).toThrow();
-            expect(() => validateWeatherCondition('')).toThrow();
-        });
-    });
-
     describe('validateBotConfig', () => {
         it('should validate proper bot configuration', () => {
             const config = {
@@ -193,73 +122,6 @@ describe('Weather Schema', () => {
             expect(() => validateBotConfig({})).toThrow();
             expect(() => validateBotConfig(null)).toThrow();
             expect(() => validateBotConfig('invalid')).toThrow();
-        });
-    });
-
-    describe('validateWeatherConditionResult', () => {
-        it('should validate proper weather condition result', () => {
-            const result = {
-                condition: 'clear',
-                temperature: 18,
-                description: 'clear sky',
-                isGood: true,
-                timestamp: 1234567890,
-            };
-
-            const validated = validateWeatherConditionResult(result);
-            expect(validated).toEqual(result);
-        });
-
-        it('should throw for invalid weather condition result', () => {
-            expect(() => validateWeatherConditionResult({})).toThrow();
-            expect(() => validateWeatherConditionResult(null)).toThrow();
-            expect(() => validateWeatherConditionResult('invalid')).toThrow();
-        });
-    });
-
-    describe('isWeatherCondition', () => {
-        it('should return true for valid weather conditions', () => {
-            expect(isWeatherCondition('clear')).toBe(true);
-            expect(isWeatherCondition('RAIN')).toBe(true);
-            expect(isWeatherCondition('Snow')).toBe(true);
-        });
-
-        it('should return false for invalid weather conditions', () => {
-            expect(isWeatherCondition('invalid')).toBe(false);
-            expect(isWeatherCondition('sunny')).toBe(false);
-            expect(isWeatherCondition('')).toBe(false);
-        });
-    });
-
-    describe('isGoodWeatherCondition', () => {
-        const goodConditions = ['clear', 'clouds'] as const;
-
-        it('should return true for good weather conditions', () => {
-            expect(isGoodWeatherCondition('clear', goodConditions)).toBe(true);
-            expect(isGoodWeatherCondition('CLEAR', goodConditions)).toBe(true);
-            expect(isGoodWeatherCondition('clouds', goodConditions)).toBe(true);
-        });
-
-        it('should return false for non-good weather conditions', () => {
-            expect(isGoodWeatherCondition('rain', goodConditions)).toBe(false);
-            expect(isGoodWeatherCondition('snow', goodConditions)).toBe(false);
-            expect(isGoodWeatherCondition('invalid', goodConditions)).toBe(false);
-        });
-    });
-
-    describe('isBadWeatherCondition', () => {
-        const badConditions = ['rain', 'snow'] as const;
-
-        it('should return true for bad weather conditions', () => {
-            expect(isBadWeatherCondition('rain', badConditions)).toBe(true);
-            expect(isBadWeatherCondition('RAIN', badConditions)).toBe(true);
-            expect(isBadWeatherCondition('snow', badConditions)).toBe(true);
-        });
-
-        it('should return false for non-bad weather conditions', () => {
-            expect(isBadWeatherCondition('clear', badConditions)).toBe(false);
-            expect(isBadWeatherCondition('clouds', badConditions)).toBe(false);
-            expect(isBadWeatherCondition('invalid', badConditions)).toBe(false);
         });
     });
 });

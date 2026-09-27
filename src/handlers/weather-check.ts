@@ -4,7 +4,7 @@ import { format, startOfWeek } from 'date-fns';
 import { eventOverridesSchema, getConfig, getCoordinates } from '../utils/env';
 import { FetchHttpClient } from '../implementations/fetch-http-client';
 import { OpenMeteoApi } from '../implementations/openmeteo-api';
-import { WeatherConfig, WeatherService } from '../services/weather.service';
+import { WeatherConfig, WeatherDecision } from '../services/weather-decision';
 import { WebhookSlackServiceImpl } from '../implementations/webhook-slack';
 import { DynamoDBStorageService } from '../implementations/dynamodb-storage';
 import { generateConfirmationUrl } from '../utils/constants';
@@ -25,7 +25,7 @@ export interface WeatherCheckHandlerDependencies {
         | 'recordMessageSent'
         | 'cleanupOldRecords'
     >;
-    weatherService?: Pick<WeatherService, 'isWeatherGood'>;
+    weatherDecision?: Pick<WeatherDecision, 'decideForLunch'>;
     slackService?: Pick<WebhookSlackServiceImpl, 'sendWeatherReminder' | 'sendWeatherWarning'>;
     secretsManagerClient: Pick<SecretsManagerClientImpl, 'getSecretValue'>;
 }
@@ -68,8 +68,8 @@ export const createWeatherCheckHandler = (dependencies: WeatherCheckHandlerDepen
                     tableName: config.dynamodbTableName,
                 });
 
-            const weatherService =
-                dependencies.weatherService ??
+            const weatherDecision =
+                dependencies.weatherDecision ??
                 (() => {
                     const httpClient = new FetchHttpClient();
                     const weatherApi = new OpenMeteoApi(httpClient);
@@ -79,7 +79,7 @@ export const createWeatherCheckHandler = (dependencies: WeatherCheckHandlerDepen
                         minTemperature: config.minTemperature,
                         weatherCheckHour: config.weatherCheckHour,
                     } as const satisfies WeatherConfig;
-                    return new WeatherService(weatherApi, weatherConfig);
+                    return new WeatherDecision(weatherApi, weatherConfig);
                 })();
 
             const slackService =
@@ -156,13 +156,15 @@ export const createWeatherCheckHandler = (dependencies: WeatherCheckHandlerDepen
                 };
             }
 
-            const weatherCondition = await weatherService.isWeatherGood(coordinates);
-            console.log('Weather condition:', weatherCondition);
+            const lunchWeather = await weatherDecision.decideForLunch(coordinates);
+            console.log('LunchWeather:', lunchWeather);
 
             let messageSent = false;
             let messageType = '';
 
-            if (weatherCondition.isGood) {
+            if (lunchWeather.outcome === 'no-forecast') {
+                console.log(`No forecast available for ${coordinates.locationName}, sending nothing`);
+            } else if (lunchWeather.outcome === 'good') {
                 const confirmationUrl = generateConfirmationUrl(
                     config.replyApiUrl,
                     coordinates.locationName,
@@ -170,8 +172,8 @@ export const createWeatherCheckHandler = (dependencies: WeatherCheckHandlerDepen
                 );
 
                 await slackService.sendWeatherReminder(
-                    weatherCondition.temperature,
-                    weatherCondition.description,
+                    lunchWeather.temperature,
+                    lunchWeather.description,
                     coordinates.locationName,
                     confirmationUrl,
                     config.slackChannel,
@@ -180,8 +182,8 @@ export const createWeatherCheckHandler = (dependencies: WeatherCheckHandlerDepen
                 await storageService.recordMessageSent(
                     'weather_reminder',
                     coordinates.locationName,
-                    weatherCondition.temperature,
-                    weatherCondition.condition,
+                    lunchWeather.temperature,
+                    lunchWeather.condition,
                 );
 
                 messageSent = true;
@@ -209,8 +211,8 @@ export const createWeatherCheckHandler = (dependencies: WeatherCheckHandlerDepen
 
                         if (canSendWarning && !alreadySentWarningToday) {
                             await slackService.sendWeatherWarning(
-                                weatherCondition.temperature,
-                                weatherCondition.description,
+                                lunchWeather.temperature,
+                                lunchWeather.description,
                                 coordinates.locationName,
                                 config.replyApiUrl,
                             );
@@ -218,8 +220,8 @@ export const createWeatherCheckHandler = (dependencies: WeatherCheckHandlerDepen
                             await storageService.recordMessageSent(
                                 'weather_warning',
                                 coordinates.locationName,
-                                weatherCondition.temperature,
-                                weatherCondition.condition,
+                                lunchWeather.temperature,
+                                lunchWeather.condition,
                             );
 
                             messageSent = true;
@@ -237,14 +239,20 @@ export const createWeatherCheckHandler = (dependencies: WeatherCheckHandlerDepen
             return {
                 statusCode: 200,
                 body: JSON.stringify({
-                    message: 'Weather check completed successfully',
+                    message:
+                        lunchWeather.outcome === 'no-forecast'
+                            ? 'No forecast available'
+                            : 'Weather check completed successfully',
                     location: coordinates.locationName,
-                    weather: {
-                        temperature: weatherCondition.temperature,
-                        condition: weatherCondition.condition,
-                        description: weatherCondition.description,
-                        isGood: weatherCondition.isGood,
-                    },
+                    weather:
+                        lunchWeather.outcome === 'no-forecast'
+                            ? null
+                            : {
+                                  temperature: lunchWeather.temperature,
+                                  condition: lunchWeather.condition,
+                                  description: lunchWeather.description,
+                                  isGood: lunchWeather.outcome === 'good',
+                              },
                     messagesSent: {
                         sent: messageSent,
                         type: messageType,

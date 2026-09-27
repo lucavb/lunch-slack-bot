@@ -1,5 +1,4 @@
-import { BotConfig } from '../types/index';
-import { validateBotConfig } from '../schemas/weather.schema';
+import { BotConfig, validateBotConfig } from '../schemas/weather.schema';
 
 const botConfigData = {
     minTemperature: 14,

@@ -18,9 +18,9 @@ describe('Weather Check Handler', () => {
             cleanupOldRecords: vi.fn(),
         } as const satisfies WeatherCheckHandlerDependencies['storageService'];
 
-        const mockWeatherService = {
-            isWeatherGood: vi.fn(),
-        } as const satisfies WeatherCheckHandlerDependencies['weatherService'];
+        const mockWeatherDecision = {
+            decideForLunch: vi.fn(),
+        } as const satisfies WeatherCheckHandlerDependencies['weatherDecision'];
 
         const mockSlackService = {
             sendWeatherReminder: vi.fn(),
@@ -43,12 +43,11 @@ describe('Weather Check Handler', () => {
         vi.spyOn(mockStorageService, 'recordMessageSent').mockResolvedValue(undefined);
         vi.spyOn(mockStorageService, 'cleanupOldRecords').mockResolvedValue(undefined);
 
-        vi.spyOn(mockWeatherService, 'isWeatherGood').mockResolvedValue({
+        vi.spyOn(mockWeatherDecision, 'decideForLunch').mockResolvedValue({
+            outcome: 'good',
             temperature: 22,
             condition: 'clear',
             description: 'Clear sky',
-            isGood: true,
-            timestamp: Date.now(),
         });
 
         vi.spyOn(mockSlackService, 'sendWeatherReminder').mockResolvedValue(undefined);
@@ -60,7 +59,7 @@ describe('Weather Check Handler', () => {
 
         const handler = createWeatherCheckHandler({
             storageService: mockStorageService,
-            weatherService: mockWeatherService,
+            weatherDecision: mockWeatherDecision,
             slackService: mockSlackService,
             secretsManagerClient: mockSecretsManagerClient,
         });
@@ -68,7 +67,7 @@ describe('Weather Check Handler', () => {
         return {
             handler,
             mockStorageService,
-            mockWeatherService,
+            mockWeatherDecision,
             mockSlackService,
             mockSecretsManagerClient,
         };
@@ -112,7 +111,7 @@ describe('Weather Check Handler', () => {
 
     describe('Early exit conditions', () => {
         it('should skip weather check when lunch already confirmed this week', async () => {
-            const { handler, mockStorageService, mockWeatherService } = createTestHandler();
+            const { handler, mockStorageService, mockWeatherDecision } = createTestHandler();
             vi.spyOn(mockStorageService, 'hasLunchBeenConfirmedForWeek').mockResolvedValue(true);
 
             const event = createMockEvent();
@@ -122,11 +121,11 @@ describe('Weather Check Handler', () => {
             const body = JSON.parse(result.body);
             expect(body.message).toBe('Lunch already confirmed this week, no weather messages needed');
             expect(body.lunchConfirmed).toBe(true);
-            expect(mockWeatherService.isWeatherGood).not.toHaveBeenCalled();
+            expect(mockWeatherDecision.decideForLunch).not.toHaveBeenCalled();
         });
 
         it('should skip when message already sent today', async () => {
-            const { handler, mockStorageService, mockWeatherService } = createTestHandler();
+            const { handler, mockStorageService, mockWeatherDecision } = createTestHandler();
             vi.spyOn(mockStorageService, 'hasMessageBeenSentToday').mockResolvedValue(true);
 
             const event = createMockEvent();
@@ -135,11 +134,11 @@ describe('Weather Check Handler', () => {
             expect(result.statusCode).toBe(200);
             const body = JSON.parse(result.body);
             expect(body.message).toBe('Message already sent today');
-            expect(mockWeatherService.isWeatherGood).not.toHaveBeenCalled();
+            expect(mockWeatherDecision.decideForLunch).not.toHaveBeenCalled();
         });
 
         it('should skip when weekly message limit reached', async () => {
-            const { handler, mockStorageService, mockWeatherService } = createTestHandler();
+            const { handler, mockStorageService, mockWeatherDecision } = createTestHandler();
             vi.spyOn(mockStorageService, 'canSendMessageThisWeek').mockResolvedValue(false);
             vi.spyOn(mockStorageService, 'getWeeklyMessageStats').mockResolvedValue({
                 messageCount: 2,
@@ -153,7 +152,7 @@ describe('Weather Check Handler', () => {
             const body = JSON.parse(result.body);
             expect(body.message).toBe('Weekly message limit reached');
             expect(body.weeklyStats.messageCount).toBe(2);
-            expect(mockWeatherService.isWeatherGood).not.toHaveBeenCalled();
+            expect(mockWeatherDecision.decideForLunch).not.toHaveBeenCalled();
         });
     });
 
@@ -187,13 +186,12 @@ describe('Weather Check Handler', () => {
         });
 
         it('should not send weather warning when location not opted in', async () => {
-            const { handler, mockStorageService, mockWeatherService, mockSlackService } = createTestHandler();
-            vi.spyOn(mockWeatherService, 'isWeatherGood').mockResolvedValue({
+            const { handler, mockStorageService, mockWeatherDecision, mockSlackService } = createTestHandler();
+            vi.spyOn(mockWeatherDecision, 'decideForLunch').mockResolvedValue({
+                outcome: 'bad-weather',
                 temperature: 5,
                 condition: 'rain',
                 description: 'Heavy rain',
-                isGood: false,
-                timestamp: Date.now(),
             });
             vi.spyOn(mockStorageService, 'isOptedInToWeatherWarnings').mockResolvedValue(false);
 
@@ -211,13 +209,12 @@ describe('Weather Check Handler', () => {
         });
 
         it('should send weather warning when location opted in and weather is bad', async () => {
-            const { handler, mockStorageService, mockWeatherService, mockSlackService } = createTestHandler();
-            vi.spyOn(mockWeatherService, 'isWeatherGood').mockResolvedValue({
+            const { handler, mockStorageService, mockWeatherDecision, mockSlackService } = createTestHandler();
+            vi.spyOn(mockWeatherDecision, 'decideForLunch').mockResolvedValue({
+                outcome: 'bad-weather',
                 temperature: 5,
                 condition: 'rain',
                 description: 'Heavy rain',
-                isGood: false,
-                timestamp: Date.now(),
             });
             vi.spyOn(mockStorageService, 'isOptedInToWeatherWarnings').mockResolvedValue(true);
 
@@ -240,13 +237,12 @@ describe('Weather Check Handler', () => {
         });
 
         it('should not send weather warning when already sent today', async () => {
-            const { handler, mockStorageService, mockWeatherService, mockSlackService } = createTestHandler();
-            vi.spyOn(mockWeatherService, 'isWeatherGood').mockResolvedValue({
+            const { handler, mockStorageService, mockWeatherDecision, mockSlackService } = createTestHandler();
+            vi.spyOn(mockWeatherDecision, 'decideForLunch').mockResolvedValue({
+                outcome: 'bad-weather',
                 temperature: 5,
                 condition: 'rain',
                 description: 'Heavy rain',
-                isGood: false,
-                timestamp: Date.now(),
             });
             vi.spyOn(mockStorageService, 'isOptedInToWeatherWarnings').mockResolvedValue(true);
             vi.spyOn(mockStorageService, 'hasMessageBeenSentToday').mockImplementation((messageType) => {
@@ -263,13 +259,12 @@ describe('Weather Check Handler', () => {
         });
 
         it('should not send weather warning when weekly limit reached', async () => {
-            const { handler, mockStorageService, mockWeatherService, mockSlackService } = createTestHandler();
-            vi.spyOn(mockWeatherService, 'isWeatherGood').mockResolvedValue({
+            const { handler, mockStorageService, mockWeatherDecision, mockSlackService } = createTestHandler();
+            vi.spyOn(mockWeatherDecision, 'decideForLunch').mockResolvedValue({
+                outcome: 'bad-weather',
                 temperature: 5,
                 condition: 'rain',
                 description: 'Heavy rain',
-                isGood: false,
-                timestamp: Date.now(),
             });
             vi.spyOn(mockStorageService, 'isOptedInToWeatherWarnings').mockResolvedValue(true);
             vi.spyOn(mockStorageService, 'canSendMessageThisWeek').mockImplementation((_location, messageType) => {
@@ -283,6 +278,25 @@ describe('Weather Check Handler', () => {
             const body = JSON.parse(result.body);
             expect(body.messagesSent.sent).toBe(false);
             expect(mockSlackService.sendWeatherWarning).not.toHaveBeenCalled();
+        });
+
+        it('should send nothing when no forecast is available', async () => {
+            const { handler, mockStorageService, mockWeatherDecision, mockSlackService } = createTestHandler();
+            vi.spyOn(mockWeatherDecision, 'decideForLunch').mockResolvedValue({ outcome: 'no-forecast' });
+
+            const event = createMockEvent();
+            const result = await handler(event);
+
+            expect(result.statusCode).toBe(200);
+            const body = JSON.parse(result.body);
+            expect(body.message).toBe('No forecast available');
+            expect(body.weather).toBeNull();
+            expect(body.messagesSent.sent).toBe(false);
+            expect(mockSlackService.sendWeatherReminder).not.toHaveBeenCalled();
+            expect(mockSlackService.sendWeatherWarning).not.toHaveBeenCalled();
+            expect(mockStorageService.recordMessageSent).not.toHaveBeenCalled();
+            expect(body.config.slackWebhookUrl).toBe('[REDACTED]');
+            expect(mockStorageService.cleanupOldRecords).toHaveBeenCalledWith(30);
         });
     });
 
@@ -298,9 +312,9 @@ describe('Weather Check Handler', () => {
     });
 
     describe('Error handling', () => {
-        it('should handle weather service errors gracefully', async () => {
-            const { handler, mockWeatherService } = createTestHandler();
-            vi.spyOn(mockWeatherService, 'isWeatherGood').mockRejectedValue(new Error('Weather API error'));
+        it('should handle WeatherDecision errors gracefully', async () => {
+            const { handler, mockWeatherDecision } = createTestHandler();
+            vi.spyOn(mockWeatherDecision, 'decideForLunch').mockRejectedValue(new Error('Weather API error'));
 
             const event = createMockEvent();
             const result = await handler(event);

@@ -25,20 +25,6 @@ export interface WeatherApiConfig {
     timeout?: number;
 }
 
-export interface WeatherConditionResult {
-    condition: string;
-    temperature: number;
-    description: string;
-    isGood: boolean;
-}
-
-export interface WeatherConfig {
-    minTemperature: number;
-    goodWeatherConditions: readonly string[];
-    badWeatherConditions: readonly string[];
-    weatherCheckHour: number;
-}
-
 export interface SlackMessage {
     text: string;
     blocks?: SlackBlock[];
@@ -123,5 +109,3 @@ export interface ConfirmLunchAction {
     action: 'confirm-lunch';
     location?: string;
 }
-
-export * from '../schemas/weather.schema';

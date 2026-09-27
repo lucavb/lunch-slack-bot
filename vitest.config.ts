@@ -14,6 +14,7 @@ export default defineConfig({
             exclude: ['src/**/*.{test,spec}.{js,ts}', 'src/**/*.d.ts'],
         },
         env: {
+            TZ: 'UTC',
             AWS_DEFAULT_REGION: 'eu-central-1',
             DYNAMODB_TABLE_NAME: 'test-table',
             LOCATION_LAT: '48.1351',
