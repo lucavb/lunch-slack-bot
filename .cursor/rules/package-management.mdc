@@ -14,7 +14,7 @@ alwaysApply: true
 
 ## Build Configuration
 - Use esbuild for fast TypeScript compilation and bundling
-- Target Node.js 22.x for Lambda runtime compatibility
+- Target Node.js 24.x for Lambda runtime compatibility
 - External AWS SDK to reduce bundle size (provided by Lambda runtime)
 - Generate source maps for better debugging in development
 
@@ -35,8 +35,8 @@ Example package.json scripts:
 {
   "scripts": {
     "build": "npm run clean && npm run build:weather-check && npm run build:reply",
-    "build:weather-check": "esbuild src/handlers/weather-check.ts --bundle --platform=node --target=node22 --outfile=dist/weather-check.js --external:aws-sdk --sourcemap",
-    "build:reply": "esbuild src/handlers/reply.ts --bundle --platform=node --target=node22 --outfile=dist/reply.js --external:aws-sdk --sourcemap",
+    "build:weather-check": "esbuild src/handlers/weather-check.ts --bundle --platform=node --target=node24 --outfile=dist/weather-check.js --external:aws-sdk --sourcemap",
+    "build:reply": "esbuild src/handlers/reply.ts --bundle --platform=node --target=node24 --outfile=dist/reply.js --external:aws-sdk --sourcemap",
     "build:dev": "npm run clean && npm run build:weather-check -- --watch & npm run build:reply -- --watch",
     "clean": "rm -rf dist",
     "cq": "npm run cq:type-check && npm run cq:lint && npm run cq:format:check",
@@ -57,7 +57,7 @@ Example package.json scripts:
 - Generate coverage reports to identify untested code paths
 
 ## Node.js Version Management
-- Use Node.js 22.x or higher for development (specified in engines field)
+- Use Node.js 24.x or higher for development (specified in engines field)
 - Ensure consistency between development and Lambda runtime versions
 - Use appropriate TypeScript target for Node.js compatibility
 

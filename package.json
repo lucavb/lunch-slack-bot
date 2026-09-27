@@ -5,8 +5,8 @@
     "main": "dist/index.js",
     "scripts": {
         "build:dev": "npm run clean && npm run build:weather-check -- --watch & npm run build:reply -- --watch",
-        "build:reply": "esbuild src/handlers/reply.ts --bundle --platform=node --target=node22 --outfile=dist/reply.js --external:aws-sdk --sourcemap",
-        "build:weather-check": "esbuild src/handlers/weather-check.ts --bundle --platform=node --target=node22 --outfile=dist/weather-check.js --external:aws-sdk --sourcemap",
+        "build:reply": "esbuild src/handlers/reply.ts --bundle --platform=node --target=node24 --outfile=dist/reply.js --external:aws-sdk --sourcemap",
+        "build:weather-check": "esbuild src/handlers/weather-check.ts --bundle --platform=node --target=node24 --outfile=dist/weather-check.js --external:aws-sdk --sourcemap",
         "build": "npm run clean && npm run build:weather-check && npm run build:reply",
         "clean": "rm -rf dist",
         "cq:format:check": "prettier --check \"src/**/*.{ts,js,json}\" \"*.{json,md}\"",
@@ -72,6 +72,6 @@
         "vitest": "5.0.2"
     },
     "engines": {
-        "node": ">=22.0.0"
+        "node": ">=24.0.0"
     }
 }

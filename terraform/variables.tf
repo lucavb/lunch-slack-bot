@@ -85,7 +85,7 @@ variable "lambda_memory" {
 variable "lambda_runtime" {
   description = "Lambda runtime version"
   type        = string
-  default     = "nodejs22.x"
+    default     = "nodejs24.x"
 }
 
 variable "log_retention_days" {

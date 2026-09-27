@@ -19,7 +19,7 @@ alwaysApply: true
 - Use VPC endpoints where appropriate to keep traffic within AWS network
 
 ## Lambda Configuration
-- Use Node.js 22.x runtime for latest features and security updates
+- Use Node.js 24.x runtime for latest features and security updates
 - Set appropriate timeout and memory based on function requirements
 - Use environment variables for configuration, not hardcoded values
 - Enable CloudWatch logging with appropriate retention periods

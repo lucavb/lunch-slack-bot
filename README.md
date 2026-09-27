@@ -48,7 +48,7 @@ A smart serverless weather bot that automatically sends Slack messages when weat
 
 ### Prerequisites
 
-- Node.js 22.x or higher
+- Node.js 24.x or higher
 - AWS CLI configured with appropriate permissions
 - OpenTofu >= 1.0
 - A Slack workspace with webhook URL
