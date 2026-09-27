@@ -17,6 +17,7 @@ export class SecretsManagerClientImpl {
         } catch (error) {
             throw new Error(
                 `Failed to parse secret value as JSON: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                { cause: error },
             );
         }
     }

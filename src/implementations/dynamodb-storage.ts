@@ -29,7 +29,7 @@ export class DynamoDBStorageService implements StorageService {
             return (result.Items?.length ?? 0) > 0;
         } catch (error) {
             console.error('Error checking if message was sent today:', error);
-            throw new Error(`Failed to check message status: ${error}`);
+            throw new Error(`Failed to check message status: ${error}`, { cause: error });
         }
     }
 
@@ -77,7 +77,7 @@ export class DynamoDBStorageService implements StorageService {
             };
         } catch (error) {
             console.error('Error getting weekly message stats:', error);
-            throw new Error(`Failed to get weekly message stats: ${error}`);
+            throw new Error(`Failed to get weekly message stats: ${error}`, { cause: error });
         }
     }
 
@@ -118,7 +118,7 @@ export class DynamoDBStorageService implements StorageService {
             console.log(`Recorded message sent: ${messageType} for ${location} on ${today}`);
         } catch (error) {
             console.error('Error recording message:', error);
-            throw new Error(`Failed to record message: ${error}`);
+            throw new Error(`Failed to record message: ${error}`, { cause: error });
         }
     }
 
@@ -151,7 +151,7 @@ export class DynamoDBStorageService implements StorageService {
             ); // Sort by timestamp descending
         } catch (error) {
             console.error('Error getting message history:', error);
-            throw new Error(`Failed to get message history: ${error}`);
+            throw new Error(`Failed to get message history: ${error}`, { cause: error });
         }
     }
 
@@ -194,7 +194,7 @@ export class DynamoDBStorageService implements StorageService {
             console.log(`Cleaned up ${scanResult.Items.length} old records`);
         } catch (error) {
             console.error('Error cleaning up old records:', error);
-            throw new Error(`Failed to cleanup old records: ${error}`);
+            throw new Error(`Failed to cleanup old records: ${error}`, { cause: error });
         }
     }
 
@@ -224,7 +224,7 @@ export class DynamoDBStorageService implements StorageService {
             console.log(`Recorded lunch confirmation for ${location} for week starting ${weekStart}`);
         } catch (error) {
             console.error('Error recording lunch confirmation:', error);
-            throw new Error(`Failed to record lunch confirmation: ${error}`);
+            throw new Error(`Failed to record lunch confirmation: ${error}`, { cause: error });
         }
     }
 
@@ -246,7 +246,7 @@ export class DynamoDBStorageService implements StorageService {
             return hasConfirmation;
         } catch (error) {
             console.error('Error checking lunch confirmation:', error);
-            throw new Error(`Failed to check lunch confirmation: ${error}`);
+            throw new Error(`Failed to check lunch confirmation: ${error}`, { cause: error });
         }
     }
 
@@ -274,7 +274,7 @@ export class DynamoDBStorageService implements StorageService {
             console.log(`Set weather warning opt-in status for ${location}: ${optedIn}`);
         } catch (error) {
             console.error('Error setting weather warning opt-in status:', error);
-            throw new Error(`Failed to set weather warning opt-in status: ${error}`);
+            throw new Error(`Failed to set weather warning opt-in status: ${error}`, { cause: error });
         }
     }
 
@@ -299,7 +299,7 @@ export class DynamoDBStorageService implements StorageService {
             return !!record['optedIn'];
         } catch (error) {
             console.error('Error checking weather warning opt-in status:', error);
-            throw new Error(`Failed to check weather warning opt-in status: ${error}`);
+            throw new Error(`Failed to check weather warning opt-in status: ${error}`, { cause: error });
         }
     }
 
@@ -364,7 +364,7 @@ export class DynamoDBStorageService implements StorageService {
             );
         } catch (error) {
             console.error('Error resetting current week:', error);
-            throw new Error(`Failed to reset current week: ${error}`);
+            throw new Error(`Failed to reset current week: ${error}`, { cause: error });
         }
     }
 }

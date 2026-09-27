@@ -40,10 +40,10 @@ export class OpenMeteoApi implements WeatherApi {
             console.error('Error fetching Open-Meteo forecast:', error);
 
             if (error instanceof Error) {
-                throw new Error(`Open-Meteo API error: ${error.message}`);
+                throw new Error(`Open-Meteo API error: ${error.message}`, { cause: error });
             }
 
-            throw new Error(`Open-Meteo API error: ${error}`);
+            throw new Error(`Open-Meteo API error: ${error}`, { cause: error });
         }
     }
 }
