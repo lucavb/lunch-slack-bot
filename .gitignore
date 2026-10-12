@@ -77,3 +77,6 @@ docs/build/
 # Local development
 .local/
 local/
+
+# Security audit run artifacts (outside version control)
+security-audit/
