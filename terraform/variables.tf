@@ -100,6 +100,19 @@ variable "api_gateway_stage_name" {
   default     = "prod"
 }
 
+# Throttling limits for the unauthenticated public /reply API route
+variable "reply_throttle_rate_limit" {
+  description = "API Gateway steady-state throttling rate limit (requests per second) for the public /reply route"
+  type        = number
+  default     = 25
+}
+
+variable "reply_throttle_burst_limit" {
+  description = "API Gateway throttling burst limit (concurrent requests) for the public /reply route"
+  type        = number
+  default     = 50
+}
+
 variable "tags" {
   description = "Common tags to be applied to all resources"
   type        = map(string)

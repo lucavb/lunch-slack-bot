@@ -263,4 +263,20 @@ resource "aws_api_gateway_stage" "lunch_bot" {
   stage_name    = var.api_gateway_stage_name
 
   tags = var.tags
+}
+
+# API Gateway Method Settings (baseline throttling)
+# Stage-wide ("*/*") rate/burst limits to protect the unauthenticated /reply
+# route from abuse. Apply method settings last so the stage already exists.
+resource "aws_api_gateway_method_settings" "lunch_bot" {
+  rest_api_id = aws_api_gateway_rest_api.lunch_bot.id
+  stage_name  = aws_api_gateway_stage.lunch_bot.stage_name
+  method_path = "*/*"
+
+  settings {
+    throttling_rate_limit = var.reply_throttle_rate_limit
+    throttling_burst_limit = var.reply_throttle_burst_limit
+  }
+
+  depends_on = [aws_api_gateway_deployment.lunch_bot]
 } 
