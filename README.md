@@ -128,9 +128,11 @@ If you prefer manual setup:
 4. **Set up Slack webhook secret:**
     ```bash
     # After deployment, set the webhook URL in Secrets Manager
-    aws secretsmanager put-secret-value \
-      --secret-id "lunch-bot/slack-webhook" \
-      --secret-string '{"webhook_url": "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"}'
+    # (piped via stdin so the webhook URL is never exposed in the process list)
+    printf '%s' '{"webhook_url": "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"}' \
+      | aws secretsmanager put-secret-value \
+          --secret-id "lunch-bot/slack-webhook" \
+          --secret-string file:///dev/stdin
     ```
 
 > ⚠️ **Security Note**: The Slack webhook URL is now stored in AWS Secrets Manager for enhanced security. Never commit webhook URLs to version control!
@@ -452,23 +454,27 @@ The webhook URL is stored in AWS Secrets Manager with the following structure:
 **Setting the secret:**
 
 ```bash
-aws secretsmanager put-secret-value \
-  --secret-id "lunch-bot/slack-webhook" \
-  --secret-string '{"webhook_url": "https://hooks.slack.com/services/T123/B456/xyz"}'
+# Piped via stdin so the webhook URL is never exposed in the process list
+printf '%s' '{"webhook_url": "https://hooks.slack.com/services/T123/B456/xyz"}' \
+  | aws secretsmanager put-secret-value \
+      --secret-id "lunch-bot/slack-webhook" \
+      --secret-string file:///dev/stdin
 ```
 
 **For multiple teams:**
 
 ```bash
 # Team Alpha
-aws secretsmanager put-secret-value \
-  --secret-id "lunch-bot-team-alpha/slack-webhook" \
-  --secret-string '{"webhook_url": "https://hooks.slack.com/services/T123/B456/alpha"}'
+printf '%s' '{"webhook_url": "https://hooks.slack.com/services/T123/B456/alpha"}' \
+  | aws secretsmanager put-secret-value \
+      --secret-id "lunch-bot-team-alpha/slack-webhook" \
+      --secret-string file:///dev/stdin
 
 # Team Beta
-aws secretsmanager put-secret-value \
-  --secret-id "lunch-bot-team-beta/slack-webhook" \
-  --secret-string '{"webhook_url": "https://hooks.slack.com/services/T123/B789/beta"}'
+printf '%s' '{"webhook_url": "https://hooks.slack.com/services/T123/B789/beta"}' \
+  | aws secretsmanager put-secret-value \
+      --secret-id "lunch-bot-team-beta/slack-webhook" \
+      --secret-string file:///dev/stdin
 ```
 
 ## 📊 Monitoring & Observability

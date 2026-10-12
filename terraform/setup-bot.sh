@@ -283,12 +283,13 @@ echo "Alternatively, you can set up the secret via AWS CLI:"
 echo ""
 read -p "Do you have your Slack webhook URL ready? [y/N]: " HAVE_WEBHOOK
 if [[ "$HAVE_WEBHOOK" =~ ^[Yy]$ ]]; then
-    read -p "Enter your Slack webhook URL: " WEBHOOK_URL
+    read -r -s -p "Enter your Slack webhook URL: " WEBHOOK_URL
+    echo
     if [[ "$WEBHOOK_URL" =~ ^https://hooks\.slack\.com/services/ ]]; then
         echo "Setting up the secret via AWS CLI..."
-        aws secretsmanager put-secret-value \
+        printf '%s' "{\"webhook_url\": \"$WEBHOOK_URL\"}" | aws secretsmanager put-secret-value \
             --secret-id "$SECRET_NAME" \
-            --secret-string "{\"webhook_url\": \"$WEBHOOK_URL\"}" \
+            --secret-string file:///dev/stdin \
             --region "$AWS_REGION"
         echo "✅ Slack webhook secret configured successfully!"
     else
