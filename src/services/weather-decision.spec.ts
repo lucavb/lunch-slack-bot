@@ -57,11 +57,16 @@ interface ForecastPoint {
     dayOffset?: number;
 }
 
-function makeForecast(hourlyPoints: ForecastPoint[]): OpenMeteoForecast {
+function makeForecast(hourlyPoints: ForecastPoint[], utcOffsetSeconds = 0): OpenMeteoForecast {
     // Naive local time strings without a Z suffix or offset — like Open-Meteo returns
-    // with timezone=auto — so getHours() matches the nominal hour under TZ=UTC.
-    const utcDateWithOffset = (dayOffset: number): string => {
-        const date = new Date();
+    // with timezone=auto. new Date(<naive string>) parses in the runtime zone, so
+    // getHours() yields the nominal hour in any runtime TZ; the decision layer
+    // compares the raw string's date prefix against the location-local today
+    // (derived from the forecast's utc_offset_seconds).
+    // Anchored to the location-local day: shifting the runtime clock by the
+    // location's utc_offset_seconds gives the location's current date.
+    const localDateWithOffset = (dayOffset: number): string => {
+        const date = new Date(Date.now() + utcOffsetSeconds * 1000);
         date.setUTCDate(date.getUTCDate() + dayOffset);
         return date.toISOString().split('T')[0];
     };
@@ -70,9 +75,12 @@ function makeForecast(hourlyPoints: ForecastPoint[]): OpenMeteoForecast {
         latitude: 48.12,
         longitude: 11.58,
         generationtime_ms: 0.05,
-        utc_offset_seconds: 7200,
-        timezone: 'Europe/Berlin',
-        timezone_abbreviation: 'CEST',
+        utc_offset_seconds: utcOffsetSeconds,
+        timezone:
+            utcOffsetSeconds === 0
+                ? 'UTC'
+                : `Etc/GMT${utcOffsetSeconds <= 0 ? '+' : '-'}${Math.abs(utcOffsetSeconds) / 3600}`,
+        timezone_abbreviation: 'UTC',
         elevation: 540,
         hourly_units: {
             cloud_cover: '%',
@@ -83,7 +91,7 @@ function makeForecast(hourlyPoints: ForecastPoint[]): OpenMeteoForecast {
         },
         hourly: {
             time: hourlyPoints.map(
-                (point) => `${utcDateWithOffset(point.dayOffset ?? 0)}T${String(point.hour).padStart(2, '0')}:00`,
+                (point) => `${localDateWithOffset(point.dayOffset ?? 0)}T${String(point.hour).padStart(2, '0')}:00`,
             ),
             temperature_2m: hourlyPoints.map((point) => point.temperature),
             weathercode: hourlyPoints.map((point) => point.weathercode),
@@ -93,8 +101,15 @@ function makeForecast(hourlyPoints: ForecastPoint[]): OpenMeteoForecast {
     };
 }
 
-const decide = async (forecastPoints: ForecastPoint[], config = baseConfig): Promise<LunchWeather> =>
-    new WeatherDecision(new CannedForecastWeatherApi(makeForecast(forecastPoints)), config).decideForLunch(munich);
+const decide = async (
+    forecastPoints: ForecastPoint[],
+    config: WeatherConfig = baseConfig,
+    utcOffsetSeconds = 0,
+): Promise<LunchWeather> =>
+    new WeatherDecision(
+        new CannedForecastWeatherApi(makeForecast(forecastPoints, utcOffsetSeconds)),
+        config,
+    ).decideForLunch(munich);
 
 describe('WeatherDecision', () => {
     describe('constructor', () => {
@@ -328,6 +343,47 @@ describe('WeatherDecision', () => {
             });
 
             expect(result.outcome).toBe('bad-weather');
+        });
+    });
+
+    describe('location-local day basis (utc_offset_seconds)', () => {
+        // Regression: the old code compared location-local naive hourly strings against
+        // the runtime/UTC calendar date, so for locations whose local date differs from
+        // the UTC date every point was filtered out and the decision degenerated to
+        // {outcome:'no-forecast'}, suppressing the lunch reminder and the weather warning.
+        it('decides normally for a -10h offset whose location-local date differs from the UTC date', async () => {
+            const result = await decide([{ hour: 12, temperature: 20, weathercode: 0 }], baseConfig, -36000);
+
+            expect(result).toEqual({
+                outcome: 'good',
+                temperature: 20,
+                condition: 'clear',
+                description: 'Clear to mainly clear',
+            });
+        });
+
+        it('decides normally for a +13h offset whose location-local date can run a day ahead of UTC', async () => {
+            const result = await decide([{ hour: 12, temperature: 20, weathercode: 0 }], baseConfig, 46800);
+
+            expect(result).toEqual({
+                outcome: 'good',
+                temperature: 20,
+                condition: 'clear',
+                description: 'Clear to mainly clear',
+            });
+        });
+
+        it('still returns no-forecast for a far offset when only location-local tomorrow has points', async () => {
+            const result = await decide(
+                [
+                    { hour: 12, temperature: 20, weathercode: 0, dayOffset: 1 },
+                    { hour: 13, temperature: 21, weathercode: 0, dayOffset: 1 },
+                ],
+                baseConfig,
+                -36000,
+            );
+
+            expect(result).toEqual({ outcome: 'no-forecast' });
         });
     });
 });

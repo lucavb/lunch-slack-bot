@@ -118,22 +118,27 @@ export class WeatherDecision {
         forecast: OpenMeteoForecast,
         coordinates: Coordinates,
     ): OpenMeteoHourlyPoint | null {
-        const today = new Date();
-        const todayDateString = today.toISOString().split('T')[0]; // YYYY-MM-DD
+        // Invariant: with timezone=auto, hourly strings are location-local naive
+        // timestamps ("yyyy-MM-ddTHH:mm", no offset). Both day-bases compared here
+        // must be location-local: derive "today" by shifting the runtime clock by
+        // the location's utc_offset_seconds, and compare each item on the raw
+        // naive string's date prefix — never round-trip the naive string through
+        // Date + toISOString(), which would re-interpret it in the runtime zone.
+        const locationLocalToday = new Date(Date.now() + forecast.utc_offset_seconds * 1000)
+            .toISOString()
+            .split('T')[0]; // YYYY-MM-DD in the forecast location's calendar
 
         // Find today's forecasts
         const todayForecasts = forecast.hourly.time
             .map((time, index) => ({
                 time: new Date(time),
+                localDate: time.slice(0, 10), // date prefix of the location-local naive string
                 temperature_2m: forecast.hourly.temperature_2m[index],
                 weathercode: forecast.hourly.weathercode[index],
                 windspeed_10m: forecast.hourly.windspeed_10m[index],
                 cloud_cover: forecast.hourly.cloud_cover[index],
             }))
-            .filter((item) => {
-                const forecastDate = item.time.toISOString().split('T')[0];
-                return forecastDate === todayDateString;
-            });
+            .filter((item) => item.localDate === locationLocalToday);
 
         if (todayForecasts.length === 0) {
             console.log('No weather forecasts found for today');
