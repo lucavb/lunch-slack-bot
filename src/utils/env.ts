@@ -6,7 +6,7 @@ import { SecretsManagerClientImpl } from '../implementations/secrets-manager-cli
 const envSchema = z.object({
     AWS_DEFAULT_REGION: z.string().default('eu-central-1'),
     DYNAMODB_TABLE_NAME: z.string().min(1, 'DYNAMODB_TABLE_NAME is required'),
-    ENABLE_WEATHER_WARNINGS: z.coerce.boolean().default(false),
+    ENABLE_WEATHER_WARNINGS: z.stringbool().default(false),
     LOCATION_LAT: z.coerce.number().pipe(z.number().min(-90).max(90)),
     LOCATION_LON: z.coerce.number().pipe(z.number().min(-180).max(180)),
     LOCATION_NAME: z.string().min(1, 'LOCATION_NAME is required'),

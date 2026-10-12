@@ -96,6 +96,44 @@ describe('Environment Utils', () => {
         });
     });
 
+    describe('ENABLE_WEATHER_WARNINGS', () => {
+        it('should parse the string "false" as false (regression: was coerced to true by z.coerce.boolean)', async () => {
+            process.env['ENABLE_WEATHER_WARNINGS'] = 'false';
+
+            const config = await getConfig();
+
+            expect(config.enableWeatherWarnings).toBe(false);
+        });
+
+        it('should parse the string "true" as true', async () => {
+            process.env['ENABLE_WEATHER_WARNINGS'] = 'true';
+
+            const config = await getConfig();
+
+            expect(config.enableWeatherWarnings).toBe(true);
+        });
+
+        it('should default to false when the variable is unset', async () => {
+            delete process.env['ENABLE_WEATHER_WARNINGS'];
+            clearCache();
+
+            const config = await getConfig();
+
+            expect(config.enableWeatherWarnings).toBe(false);
+        });
+
+        it('should parse non-canonical strings case-insensitively (zod 4.6.5 stringbool accepts "1", "yes", "TRUE")', async () => {
+            // Observed behavior of zod@4.6.5 z.stringbool(): parsing is case-insensitive
+            // ('TRUE' -> true), and the truthy set is true/1/yes/on/y/enabled, falsy set is
+            // false/0/no/off/n/disabled. Anything else (e.g. '') is rejected with a ZodError.
+            process.env['ENABLE_WEATHER_WARNINGS'] = 'TRUE';
+
+            const config = await getConfig();
+
+            expect(config.enableWeatherWarnings).toBe(true);
+        });
+    });
+
     describe('getCoordinates', () => {
         it('should return coordinates from config', async () => {
             const coordinates = await getCoordinates();
