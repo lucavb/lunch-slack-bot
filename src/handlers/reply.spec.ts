@@ -1,9 +1,34 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { APIGatewayProxyEvent } from 'aws-lambda';
+import { format, startOfWeek } from 'date-fns';
 import { createReplyHandler, ReplyHandlerDependencies } from './reply';
 import { clearCache } from '../utils/env';
+import { createActionToken, verifyActionToken } from '../utils/action-token';
+import { ACTION_TOKEN_TTL_DAYS } from '../utils/constants';
 
 type MockEvent = Pick<APIGatewayProxyEvent, 'httpMethod' | 'body' | 'queryStringParameters' | 'headers'>;
+
+const WEBHOOK_URL = 'https://hooks.slack.com/services/test/webhook/url';
+const LOCATION = 'Munich';
+
+const currentWeekStart = () => format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd');
+
+const makeToken = (action: string, overrides?: { location?: string; date?: string; ttlDays?: number }): string =>
+    createActionToken(
+        WEBHOOK_URL,
+        action,
+        overrides?.location ?? LOCATION,
+        overrides?.date ?? currentWeekStart(),
+        overrides?.ttlDays ?? ACTION_TOKEN_TTL_DAYS,
+    );
+
+const makeBody = (action: string, extra: Record<string, unknown> = {}): string =>
+    JSON.stringify({
+        action,
+        date: currentWeekStart(),
+        token: makeToken(action),
+        ...extra,
+    });
 
 function createMockEvent(
     httpMethod: string,
@@ -25,7 +50,6 @@ describe('Reply Handler', () => {
             hasLunchBeenConfirmedForWeek: vi.fn(),
             recordLunchConfirmation: vi.fn(),
             setWeatherWarningOptInStatus: vi.fn(),
-            resetCurrentWeek: vi.fn(),
         } as const satisfies ReplyHandlerDependencies['storageService'];
         const mockSecretsManagerClient = {
             getSecretValue: vi.fn(),
@@ -34,9 +58,8 @@ describe('Reply Handler', () => {
         vi.spyOn(mockStorageService, 'hasLunchBeenConfirmedForWeek').mockResolvedValue(false);
         vi.spyOn(mockStorageService, 'recordLunchConfirmation').mockResolvedValue(undefined);
         vi.spyOn(mockStorageService, 'setWeatherWarningOptInStatus').mockResolvedValue(undefined);
-        vi.spyOn(mockStorageService, 'resetCurrentWeek').mockResolvedValue(undefined);
         vi.spyOn(mockSecretsManagerClient, 'getSecretValue').mockResolvedValue({
-            webhook_url: 'https://hooks.slack.com/services/test/webhook/url',
+            webhook_url: WEBHOOK_URL,
         });
 
         const handler = createReplyHandler({
@@ -85,22 +108,13 @@ describe('Reply Handler', () => {
 
         it('should allow normal requests without Slack bot user agent', async () => {
             const { handler, mockStorageService } = createTestHandler();
+            const token = makeToken('confirm-lunch');
             const event = createMockEvent(
                 'GET',
                 null,
-                { action: 'confirm-lunch' },
+                { action: 'confirm-lunch', date: currentWeekStart(), token },
                 { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
             );
-            const result = await handler(event);
-
-            expect(result.statusCode).toBe(200);
-            expect(mockStorageService.hasLunchBeenConfirmedForWeek).toHaveBeenCalled();
-            expect(JSON.parse(result.body)).not.toEqual({ message: 'Bot request blocked' });
-        });
-
-        it('should allow requests without headers', async () => {
-            const { handler, mockStorageService } = createTestHandler();
-            const event = createMockEvent('GET', null, { action: 'confirm-lunch' });
             const result = await handler(event);
 
             expect(result.statusCode).toBe(200);
@@ -120,9 +134,9 @@ describe('Reply Handler', () => {
             expect(result.headers).toHaveProperty('Access-Control-Allow-Headers');
         });
 
-        it('should include CORS headers in all responses', async () => {
+        it('should include CORS headers on successful responses', async () => {
             const { handler } = createTestHandler();
-            const event = createMockEvent('POST', '{"action": "confirm-lunch"}');
+            const event = createMockEvent('POST', makeBody('confirm-lunch'));
             const result = await handler(event);
 
             expect(result.headers).toHaveProperty('Access-Control-Allow-Origin', '*');
@@ -132,7 +146,7 @@ describe('Reply Handler', () => {
 
         it('should handle unsupported HTTP methods', async () => {
             const { handler } = createTestHandler();
-            const event = createMockEvent('PUT', '{"action": "confirm-lunch"}');
+            const event = createMockEvent('PUT', makeBody('confirm-lunch'));
             const result = await handler(event);
 
             expect(result.statusCode).toBe(405);
@@ -154,29 +168,39 @@ describe('Reply Handler', () => {
             expect(body.error).toBe('Invalid JSON in request body');
         });
 
-        it('should use default action when none provided', async () => {
+        it('should reject requests without an explicit action', async () => {
             const { handler, mockStorageService } = createTestHandler();
             const event = createMockEvent('POST', '{}');
-            const result = await handler(event);
-
-            expect(result.statusCode).toBe(200);
-            expect(mockStorageService.hasLunchBeenConfirmedForWeek).toHaveBeenCalled();
-        });
-
-        it('should handle invalid action gracefully', async () => {
-            const { handler } = createTestHandler();
-            const event = createMockEvent('POST', '{"action": "invalid-action"}');
             const result = await handler(event);
 
             expect(result.statusCode).toBe(400);
             const body = JSON.parse(result.body);
             expect(body.error).toBe('Invalid request parameters');
-            expect(body.allowedActions).toContain('reset-week');
+            expect(mockStorageService.hasLunchBeenConfirmedForWeek).not.toHaveBeenCalled();
+        });
+
+        it('should handle invalid action gracefully and no longer advertise reset-week', async () => {
+            const { handler } = createTestHandler();
+            const event = createMockEvent('POST', JSON.stringify({ action: 'invalid-action', token: 'x' }));
+            const result = await handler(event);
+
+            expect(result.statusCode).toBe(400);
+            const body = JSON.parse(result.body);
+            expect(body.error).toBe('Invalid request parameters');
+            expect(body.allowedActions).toContain('confirm-lunch');
+            expect(body.allowedActions).toContain('opt-in-warnings');
+            expect(body.allowedActions).toContain('opt-out-warnings');
+            expect(body.allowedActions).not.toContain('reset-week');
         });
 
         it('should handle GET requests with query parameters', async () => {
             const { handler, mockStorageService } = createTestHandler();
-            const event = createMockEvent('GET', null, { action: 'confirm-lunch' });
+            const token = makeToken('confirm-lunch');
+            const event = createMockEvent('GET', null, {
+                action: 'confirm-lunch',
+                date: currentWeekStart(),
+                token,
+            });
             const result = await handler(event);
 
             expect(result.statusCode).toBe(200);
@@ -184,26 +208,139 @@ describe('Reply Handler', () => {
         });
     });
 
-    describe('Lunch confirmation', () => {
-        it('should confirm lunch when not already confirmed', async () => {
+    describe('Token verification', () => {
+        it('should reject requests with a missing token at the schema layer', async () => {
             const { handler, mockStorageService } = createTestHandler();
-            const event = createMockEvent('POST', '{"action": "confirm-lunch"}');
+            const event = createMockEvent('POST', makeBody('confirm-lunch', { token: undefined }));
+            const result = await handler(event);
+
+            expect(result.statusCode).toBe(400);
+            const body = JSON.parse(result.body);
+            expect(body.error).toBe('Invalid request parameters');
+            expect(mockStorageService.hasLunchBeenConfirmedForWeek).not.toHaveBeenCalled();
+        });
+
+        it('should reject requests with a structurally invalid token', async () => {
+            const { handler, mockStorageService } = createTestHandler();
+            const event = createMockEvent('POST', makeBody('confirm-lunch', { token: 'garbage-token' }));
+            const result = await handler(event);
+
+            expect(result.statusCode).toBe(403);
+            expect(JSON.parse(result.body)).toEqual({ error: 'Forbidden' });
+            expect(mockStorageService.hasLunchBeenConfirmedForWeek).not.toHaveBeenCalled();
+        });
+
+        it('should reject tokens bound to a different action', async () => {
+            const { handler, mockStorageService } = createTestHandler();
+            const event = createMockEvent('POST', makeBody('confirm-lunch', { token: makeToken('opt-in-warnings') }));
+            const result = await handler(event);
+
+            expect(result.statusCode).toBe(403);
+            expect(JSON.parse(result.body)).toEqual({ error: 'Forbidden' });
+            expect(mockStorageService.hasLunchBeenConfirmedForWeek).not.toHaveBeenCalled();
+        });
+
+        it('should reject tokens bound to a different location', async () => {
+            const { handler, mockStorageService } = createTestHandler();
+            const event = createMockEvent(
+                'POST',
+                makeBody('confirm-lunch', { token: makeToken('confirm-lunch', { location: 'Berlin' }) }),
+            );
+            const result = await handler(event);
+
+            expect(result.statusCode).toBe(403);
+            expect(JSON.parse(result.body)).toEqual({ error: 'Forbidden' });
+            expect(mockStorageService.hasLunchBeenConfirmedForWeek).not.toHaveBeenCalled();
+        });
+
+        it('should reject tokens bound to a past date', async () => {
+            const { handler, mockStorageService } = createTestHandler();
+            const event = createMockEvent(
+                'POST',
+                makeBody('confirm-lunch', { token: makeToken('confirm-lunch', { date: '2026-01-05' }) }),
+            );
+            const result = await handler(event);
+
+            expect(result.statusCode).toBe(403);
+            expect(JSON.parse(result.body)).toEqual({ error: 'Forbidden' });
+            expect(mockStorageService.hasLunchBeenConfirmedForWeek).not.toHaveBeenCalled();
+        });
+
+        it('should reject expired tokens', async () => {
+            const { handler, mockStorageService } = createTestHandler();
+            const event = createMockEvent(
+                'POST',
+                makeBody('confirm-lunch', { token: makeToken('confirm-lunch', { ttlDays: -1 }) }),
+            );
+            const result = await handler(event);
+
+            expect(result.statusCode).toBe(403);
+            expect(JSON.parse(result.body)).toEqual({ error: 'Forbidden' });
+            expect(mockStorageService.hasLunchBeenConfirmedForWeek).not.toHaveBeenCalled();
+        });
+
+        it('should accept a token generated by the server-issued link builder', async () => {
+            const { handler, mockStorageService } = createTestHandler();
+            const token = makeToken('confirm-lunch');
+
+            expect(verifyActionToken(WEBHOOK_URL, 'confirm-lunch', LOCATION, currentWeekStart(), token)).toBe(true);
+
+            const event = createMockEvent('POST', makeBody('confirm-lunch', { token }));
             const result = await handler(event);
 
             expect(result.statusCode).toBe(200);
             expect(mockStorageService.hasLunchBeenConfirmedForWeek).toHaveBeenCalled();
-            expect(mockStorageService.recordLunchConfirmation).toHaveBeenCalled();
+        });
+    });
+
+    describe('Location allowlist', () => {
+        it('should reject caller-supplied locations other than the configured location', async () => {
+            const { handler, mockStorageService } = createTestHandler();
+            const event = createMockEvent('POST', makeBody('opt-in-warnings', { location: 'Berlin' }));
+            const result = await handler(event);
+
+            expect(result.statusCode).toBe(403);
+            expect(JSON.parse(result.body)).toEqual({ error: 'Forbidden' });
+            expect(mockStorageService.setWeatherWarningOptInStatus).not.toHaveBeenCalled();
+        });
+
+        it('should reject non-configured locations via GET as well', async () => {
+            const { handler, mockStorageService } = createTestHandler();
+            const event = createMockEvent('GET', null, {
+                action: 'confirm-lunch',
+                location: 'Hamburg',
+                date: currentWeekStart(),
+                token: makeToken('confirm-lunch'),
+            });
+            const result = await handler(event);
+
+            expect(result.statusCode).toBe(403);
+            expect(JSON.parse(result.body)).toEqual({ error: 'Forbidden' });
+            expect(mockStorageService.hasLunchBeenConfirmedForWeek).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('Lunch confirmation', () => {
+        it('should confirm lunch for the current week when not already confirmed', async () => {
+            const { handler, mockStorageService } = createTestHandler();
+            const event = createMockEvent('POST', makeBody('confirm-lunch'));
+            const result = await handler(event);
+
+            expect(result.statusCode).toBe(200);
+            expect(mockStorageService.hasLunchBeenConfirmedForWeek).toHaveBeenCalledWith(LOCATION, currentWeekStart());
+            expect(mockStorageService.recordLunchConfirmation).toHaveBeenCalledWith(LOCATION, currentWeekStart());
 
             const body = JSON.parse(result.body);
             expect(body.message).toContain('Thanks for confirming');
             expect(body.confirmed).toBe(true);
+            expect(body.weekStart).toBe(currentWeekStart());
         });
 
         it('should handle already confirmed lunch', async () => {
             const { handler, mockStorageService } = createTestHandler();
             vi.spyOn(mockStorageService, 'hasLunchBeenConfirmedForWeek').mockResolvedValue(true);
 
-            const event = createMockEvent('POST', '{"action": "confirm-lunch"}');
+            const event = createMockEvent('POST', makeBody('confirm-lunch'));
             const result = await handler(event);
 
             expect(result.statusCode).toBe(200);
@@ -215,25 +352,50 @@ describe('Reply Handler', () => {
             expect(body.alreadyConfirmed).toBe(true);
         });
 
-        it('should use custom location when provided', async () => {
+        it('should ignore caller-supplied dates and record the server-derived week start', async () => {
             const { handler, mockStorageService } = createTestHandler();
-            const event = createMockEvent('POST', '{"action": "confirm-lunch", "location": "Berlin"}');
+            const event = createMockEvent('POST', makeBody('confirm-lunch'));
             const result = await handler(event);
 
             expect(result.statusCode).toBe(200);
-            expect(mockStorageService.hasLunchBeenConfirmedForWeek).toHaveBeenCalled();
-            expect(mockStorageService.recordLunchConfirmation).toHaveBeenCalled();
+            expect(mockStorageService.recordLunchConfirmation).toHaveBeenCalledWith(LOCATION, currentWeekStart());
+        });
+    });
+
+    describe('Server-side date rejection', () => {
+        it('should reject dates that are not the current week start for all actions', async () => {
+            const { handler, mockStorageService } = createTestHandler();
+            const event = createMockEvent('POST', makeBody('confirm-lunch', { date: '2026-01-05' }));
+            const result = await handler(event);
+
+            expect(result.statusCode).toBe(400);
+            const body = JSON.parse(result.body);
+            expect(body.error).toBe('Invalid date: confirmations may only target the current week');
+            expect(body.expected).toBe(currentWeekStart());
+            expect(mockStorageService.hasLunchBeenConfirmedForWeek).not.toHaveBeenCalled();
+            expect(mockStorageService.recordLunchConfirmation).not.toHaveBeenCalled();
+        });
+
+        it('should reject future dates even with a matching token', async () => {
+            const { handler, mockStorageService } = createTestHandler();
+            const event = createMockEvent('POST', makeBody('opt-in-warnings', { date: '2030-01-07' }));
+            const result = await handler(event);
+
+            expect(result.statusCode).toBe(400);
+            const body = JSON.parse(result.body);
+            expect(body.error).toBe('Invalid date: confirmations may only target the current week');
+            expect(mockStorageService.setWeatherWarningOptInStatus).not.toHaveBeenCalled();
         });
     });
 
     describe('Weather warning preferences', () => {
         it('should opt in to weather warnings', async () => {
             const { handler, mockStorageService } = createTestHandler();
-            const event = createMockEvent('POST', '{"action": "opt-in-warnings"}');
+            const event = createMockEvent('POST', makeBody('opt-in-warnings'));
             const result = await handler(event);
 
             expect(result.statusCode).toBe(200);
-            expect(mockStorageService.setWeatherWarningOptInStatus).toHaveBeenCalledWith('Munich', true);
+            expect(mockStorageService.setWeatherWarningOptInStatus).toHaveBeenCalledWith(LOCATION, true);
 
             const body = JSON.parse(result.body);
             expect(body.message).toContain('opted in to weather warnings');
@@ -242,24 +404,15 @@ describe('Reply Handler', () => {
 
         it('should opt out of weather warnings', async () => {
             const { handler, mockStorageService } = createTestHandler();
-            const event = createMockEvent('POST', '{"action": "opt-out-warnings"}');
+            const event = createMockEvent('POST', makeBody('opt-out-warnings'));
             const result = await handler(event);
 
             expect(result.statusCode).toBe(200);
-            expect(mockStorageService.setWeatherWarningOptInStatus).toHaveBeenCalledWith('Munich', false);
+            expect(mockStorageService.setWeatherWarningOptInStatus).toHaveBeenCalledWith(LOCATION, false);
 
             const body = JSON.parse(result.body);
             expect(body.message).toContain('opted out of weather warnings');
             expect(body.optedIn).toBe(false);
-        });
-
-        it('should use custom location for weather warning preferences', async () => {
-            const { handler, mockStorageService } = createTestHandler();
-            const event = createMockEvent('POST', '{"action": "opt-in-warnings", "location": "Frankfurt"}');
-            const result = await handler(event);
-
-            expect(result.statusCode).toBe(200);
-            expect(mockStorageService.setWeatherWarningOptInStatus).toHaveBeenCalledWith('Frankfurt', true);
         });
     });
 
@@ -268,7 +421,7 @@ describe('Reply Handler', () => {
             const { handler, mockStorageService } = createTestHandler();
             vi.spyOn(mockStorageService, 'hasLunchBeenConfirmedForWeek').mockRejectedValue(new Error('Database error'));
 
-            const event = createMockEvent('POST', '{"action": "confirm-lunch"}');
+            const event = createMockEvent('POST', makeBody('confirm-lunch'));
             const result = await handler(event);
 
             expect(result.statusCode).toBe(500);
@@ -278,7 +431,7 @@ describe('Reply Handler', () => {
 
         it('should redact sensitive information from responses', async () => {
             const { handler } = createTestHandler();
-            const event = createMockEvent('POST', '{"action": "confirm-lunch"}');
+            const event = createMockEvent('POST', makeBody('confirm-lunch'));
             const result = await handler(event);
 
             const body = JSON.parse(result.body);
@@ -286,88 +439,30 @@ describe('Reply Handler', () => {
         });
     });
 
-    describe('Week reset functionality', () => {
-        it('should reset current week data', async () => {
-            const { handler, mockStorageService } = createTestHandler();
-            const event = createMockEvent('POST', '{"action": "reset-week"}');
-            const result = await handler(event);
-
-            expect(result.statusCode).toBe(200);
-            expect(mockStorageService.resetCurrentWeek).toHaveBeenCalledWith('Munich');
-
-            const body = JSON.parse(result.body);
-            expect(body.message).toContain('Successfully reset current week data');
-            expect(body.action).toBe('reset-week');
-            expect(body.reset).toBe(true);
-            expect(body.weekStart).toBeDefined();
-        });
-
-        it('should reset current week with custom location', async () => {
-            const { handler, mockStorageService } = createTestHandler();
-            const event = createMockEvent('POST', '{"action": "reset-week", "location": "Hamburg"}');
-            const result = await handler(event);
-
-            expect(result.statusCode).toBe(200);
-            expect(mockStorageService.resetCurrentWeek).toHaveBeenCalledWith('Hamburg');
-
-            const body = JSON.parse(result.body);
-            expect(body.location).toBe('Hamburg');
-        });
-
-        it('should handle reset-week via GET request', async () => {
-            const { handler, mockStorageService } = createTestHandler();
-            const event = createMockEvent('GET', null, { action: 'reset-week' });
-            const result = await handler(event);
-
-            expect(result.statusCode).toBe(200);
-            expect(mockStorageService.resetCurrentWeek).toHaveBeenCalledWith('Munich');
-
-            const body = JSON.parse(result.body);
-            expect(body.reset).toBe(true);
-        });
-
-        it('should handle reset-week storage service errors', async () => {
-            const { handler, mockStorageService } = createTestHandler();
-            vi.spyOn(mockStorageService, 'resetCurrentWeek').mockRejectedValue(new Error('Reset failed'));
-
-            const event = createMockEvent('POST', '{"action": "reset-week"}');
-            const result = await handler(event);
-
-            expect(result.statusCode).toBe(500);
-            expect(mockStorageService.resetCurrentWeek).toHaveBeenCalled();
-
-            const body = JSON.parse(result.body);
-            expect(body.error).toBe('Internal server error');
-        });
-
-        it('should include reset-week in allowed actions for validation errors', async () => {
+    describe('Reset-week removal', () => {
+        it('should reject the removed reset-week action at the schema layer', async () => {
             const { handler } = createTestHandler();
-            const event = createMockEvent('POST', '{"action": "invalid-reset-action"}');
+            const event = createMockEvent('POST', makeBody('reset-week'));
             const result = await handler(event);
 
             expect(result.statusCode).toBe(400);
             const body = JSON.parse(result.body);
-            expect(body.allowedActions).toContain('reset-week');
+            expect(body.error).toBe('Invalid request parameters');
+            expect(body.allowedActions).not.toContain('reset-week');
         });
 
-        it('should redact sensitive config in reset response', async () => {
+        it('should reject reset-week via GET request as well', async () => {
             const { handler } = createTestHandler();
-            const event = createMockEvent('POST', '{"action": "reset-week"}');
+            const event = createMockEvent('GET', null, {
+                action: 'reset-week',
+                date: currentWeekStart(),
+                token: makeToken('reset-week'),
+            });
             const result = await handler(event);
 
-            expect(result.statusCode).toBe(200);
+            expect(result.statusCode).toBe(400);
             const body = JSON.parse(result.body);
-            expect(body.config.slackWebhookUrl).toBe('[REDACTED]');
-        });
-
-        it('should include correct CORS headers in reset response', async () => {
-            const { handler } = createTestHandler();
-            const event = createMockEvent('POST', '{"action": "reset-week"}');
-            const result = await handler(event);
-
-            expect(result.statusCode).toBe(200);
-            expect(result.headers).toHaveProperty('Access-Control-Allow-Origin', '*');
-            expect(result.headers).toHaveProperty('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+            expect(body.error).toBe('Invalid request parameters');
         });
     });
 });

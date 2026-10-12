@@ -2,21 +2,23 @@ import { APIGatewayProxyEvent, APIGatewayProxyHandler } from 'aws-lambda';
 import { z } from 'zod';
 import { format, startOfWeek } from 'date-fns';
 import { getConfig, getCoordinates } from '../utils/env';
+import { verifyActionToken } from '../utils/action-token';
 import { DynamoDBStorageService } from '../implementations/dynamodb-storage';
 import { SecretsManagerClientImpl } from '../implementations/secrets-manager-client';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
 
 const replyRequestSchema = z.object({
-    action: z.enum(['confirm-lunch', 'opt-in-warnings', 'opt-out-warnings', 'reset-week']).default('confirm-lunch'),
+    action: z.enum(['confirm-lunch', 'opt-in-warnings', 'opt-out-warnings']),
     location: z.string().optional(),
     date: z.string().optional(),
+    token: z.string(),
 });
 
 export interface ReplyHandlerDependencies {
     storageService?: Pick<
         DynamoDBStorageService,
-        'setWeatherWarningOptInStatus' | 'hasLunchBeenConfirmedForWeek' | 'recordLunchConfirmation' | 'resetCurrentWeek'
+        'setWeatherWarningOptInStatus' | 'hasLunchBeenConfirmedForWeek' | 'recordLunchConfirmation'
     >;
     secretsManagerClient: Pick<SecretsManagerClientImpl, 'getSecretValue'>;
 }
@@ -86,17 +88,51 @@ export const createReplyHandler = (dependencies: ReplyHandlerDependencies) =>
                     body: JSON.stringify({
                         error: 'Invalid request parameters',
                         details: parseResult.error.issues,
-                        allowedActions: ['confirm-lunch', 'opt-in-warnings', 'opt-out-warnings', 'reset-week'],
+                        allowedActions: ['confirm-lunch', 'opt-in-warnings', 'opt-out-warnings'],
                     }),
                 };
             }
 
-            const { action, location: customLocation, date } = parseResult.data;
+            const { action, location: customLocation, date, token } = parseResult.data;
 
             const config = await getConfig(undefined, { secretsManagerClientImpl: dependencies.secretsManagerClient });
             const coordinates = await getCoordinates();
 
-            const locationName = customLocation || coordinates.locationName;
+            // Only the single configured location may be targeted; no caller-selected
+            // resource keys.
+            const locationName = coordinates.locationName;
+            if (customLocation !== undefined && customLocation !== locationName) {
+                console.log(`Rejecting reply action for non-configured location: ${customLocation}`);
+                return {
+                    statusCode: 403,
+                    headers: corsHeaders,
+                    body: JSON.stringify({ error: 'Forbidden' }),
+                };
+            }
+
+            // Confirmations may only target the current week, which is derived server-side.
+            const weekStart = format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd');
+            if (date !== undefined && date !== weekStart) {
+                return {
+                    statusCode: 400,
+                    headers: corsHeaders,
+                    body: JSON.stringify({
+                        error: 'Invalid date: confirmations may only target the current week',
+                        expected: weekStart,
+                    }),
+                };
+            }
+
+            // Every state-changing action requires a valid server-issued HMAC token bound
+            // to the exact action, location and current week start.
+            if (!verifyActionToken(config.slackWebhookUrl, action, locationName, weekStart, token)) {
+                console.log(`Rejecting reply action with invalid token for action: ${action}`);
+                return {
+                    statusCode: 403,
+                    headers: corsHeaders,
+                    body: JSON.stringify({ error: 'Forbidden' }),
+                };
+            }
 
             console.log(`Processing reply action: ${action} for location: ${locationName}`);
 
@@ -108,8 +144,6 @@ export const createReplyHandler = (dependencies: ReplyHandlerDependencies) =>
                 });
 
             if (action === 'confirm-lunch') {
-                const weekStart = date || format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd');
-
                 const alreadyConfirmed = await storageService.hasLunchBeenConfirmedForWeek(locationName, weekStart);
 
                 if (alreadyConfirmed) {
@@ -195,35 +229,13 @@ export const createReplyHandler = (dependencies: ReplyHandlerDependencies) =>
                 };
             }
 
-            if (action === 'reset-week') {
-                await storageService.resetCurrentWeek(locationName);
-                console.log(`Successfully reset current week data for location: ${locationName}`);
-
-                return {
-                    statusCode: 200,
-                    headers: corsHeaders,
-                    body: JSON.stringify({
-                        message:
-                            'Successfully reset current week data. The system will now start sending weather reminders again.',
-                        action,
-                        location: locationName,
-                        weekStart: format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd'),
-                        reset: true,
-                        config: {
-                            ...config,
-                            slackWebhookUrl: '[REDACTED]',
-                        },
-                    }),
-                };
-            }
-
             return {
                 statusCode: 400,
                 headers: corsHeaders,
                 body: JSON.stringify({
                     error: 'Unknown action',
                     providedAction: action,
-                    allowedActions: ['confirm-lunch', 'opt-in-warnings', 'opt-out-warnings', 'reset-week'],
+                    allowedActions: ['confirm-lunch', 'opt-in-warnings', 'opt-out-warnings'],
                 }),
             };
         } catch (error) {

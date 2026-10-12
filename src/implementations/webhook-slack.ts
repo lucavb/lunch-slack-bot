@@ -58,7 +58,7 @@ export class WebhookSlackServiceImpl implements WebhookSlackService {
         temperature: number,
         description: string,
         locationName: string,
-        apiUrl?: string,
+        optOutUrl?: string,
     ): Promise<void> {
         const baseMessage = `🌧️ **Weather Update for ${locationName}**
 
@@ -68,8 +68,10 @@ Unfortunately, the weather isn't great for an outdoor lunch today:
 
 Maybe consider indoor lunch options or wait for better weather! 🏢☕`;
 
-        const optOutMessage = apiUrl
-            ? `_Don't want these weather warnings? <${apiUrl}?action=opt-out-warnings&location=${encodeURIComponent(locationName)}|Click here to opt out>_`
+        // `optOutUrl` is the fully built reply-route URL (action, location, date and
+        // auth token are attached by the caller), or omitted when unavailable.
+        const optOutMessage = optOutUrl
+            ? `_Don't want these weather warnings? <${optOutUrl}|Click here to opt out>_`
             : `_Don't want these weather warnings? You can opt out anytime._`;
 
         const messageText = `${baseMessage}

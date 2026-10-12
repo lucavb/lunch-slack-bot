@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { format, startOfWeek } from 'date-fns';
 import { createWeatherCheckHandler, WeatherCheckHandlerDependencies } from './weather-check';
 import { clearCache } from '../utils/env';
+import { verifyActionToken } from '../utils/action-token';
+
+const WEBHOOK_URL = 'https://hooks.slack.com/services/test/webhook/url';
+const currentWeekStart = () => format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd');
 
 function createMockEvent(overrides?: unknown) {
     return { overrides } as const;
@@ -177,6 +182,23 @@ describe('Weather Check Handler', () => {
                 expect.stringContaining('confirm-lunch'),
                 '#general',
             );
+
+            const confirmationUrl = mockSlackService.sendWeatherReminder.mock.calls[0]![3] as string;
+            const confirmationParams = new URL(confirmationUrl).searchParams;
+            expect(confirmationUrl).toContain('action=confirm-lunch');
+            expect(confirmationParams.get('location')).toBe('Munich');
+            expect(confirmationParams.get('date')).toBe(currentWeekStart());
+            expect(confirmationParams.get('token')).toBeTruthy();
+            expect(
+                verifyActionToken(
+                    WEBHOOK_URL,
+                    'confirm-lunch',
+                    'Munich',
+                    currentWeekStart(),
+                    confirmationParams.get('token')!,
+                ),
+            ).toBe(true);
+
             expect(mockStorageService.recordMessageSent).toHaveBeenCalledWith(
                 'weather_reminder',
                 'Munich',
@@ -234,6 +256,22 @@ describe('Weather Check Handler', () => {
                 expect.any(String),
             );
             expect(mockStorageService.recordMessageSent).toHaveBeenCalledWith('weather_warning', 'Munich', 5, 'rain');
+
+            const optOutUrl = mockSlackService.sendWeatherWarning.mock.calls[0]![3] as string;
+            const optOutParams = new URL(optOutUrl).searchParams;
+            expect(optOutUrl).toContain('action=opt-out-warnings');
+            expect(optOutParams.get('location')).toBe('Munich');
+            expect(optOutParams.get('date')).toBe(currentWeekStart());
+            expect(optOutParams.get('token')).toBeTruthy();
+            expect(
+                verifyActionToken(
+                    WEBHOOK_URL,
+                    'opt-out-warnings',
+                    'Munich',
+                    currentWeekStart(),
+                    optOutParams.get('token')!,
+                ),
+            ).toBe(true);
         });
 
         it('should not send weather warning when already sent today', async () => {

@@ -38,13 +38,21 @@ Anyone up for a lunch meetup in the park? React with ✅ to communicate with col
 Anyone up for a lunch meetup in the park? React with ✅ if you're interested!`;
 };
 
-export const generateConfirmationUrl = (baseUrl: string, location: string, date?: string): string => {
+export type ReplyAction = 'confirm-lunch' | 'opt-in-warnings' | 'opt-out-warnings';
+
+export const generateConfirmationUrl = (
+    baseUrl: string,
+    location: string,
+    date: string,
+    token: string,
+    action: ReplyAction = 'confirm-lunch',
+): string => {
     const url = new URL(baseUrl);
-    url.searchParams.set('action', 'confirm-lunch');
+    url.searchParams.set('action', action);
     url.searchParams.set('location', location);
-    if (date) {
-        url.searchParams.set('date', date);
-    }
+    url.searchParams.set('date', date);
+    // URLSearchParams performs the same percent-encoding as encodeURIComponent.
+    url.searchParams.set('token', token);
     return url.toString();
 };
 
@@ -52,6 +60,7 @@ export const NOON_HOUR = 12; // 12 PM / noon
 export const SCHEDULER_HOUR = 10; // 10 AM for weather check
 export const DYNAMO_TTL_DAYS = 30;
 export const MAX_MESSAGES_PER_WEEK = 2;
+export const ACTION_TOKEN_TTL_DAYS = 7; // aligns with the weekly message cycle; each scheduled message carries fresh links
 export const DEFAULT_WEATHER_WARNINGS_ENABLED = false; // Weather warnings are opt-in by default
 
 export const ERROR_MESSAGES = {

@@ -7,7 +7,8 @@ import { OpenMeteoApi } from '../implementations/openmeteo-api';
 import { WeatherConfig, WeatherDecision } from '../services/weather-decision';
 import { WebhookSlackServiceImpl } from '../implementations/webhook-slack';
 import { DynamoDBStorageService } from '../implementations/dynamodb-storage';
-import { generateConfirmationUrl } from '../utils/constants';
+import { ACTION_TOKEN_TTL_DAYS, generateConfirmationUrl } from '../utils/constants';
+import { createActionToken } from '../utils/action-token';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
 import { SecretsManagerClientImpl } from '../implementations/secrets-manager-client';
@@ -165,10 +166,18 @@ export const createWeatherCheckHandler = (dependencies: WeatherCheckHandlerDepen
             if (lunchWeather.outcome === 'no-forecast') {
                 console.log(`No forecast available for ${coordinates.locationName}, sending nothing`);
             } else if (lunchWeather.outcome === 'good') {
+                const confirmationToken = createActionToken(
+                    config.slackWebhookUrl,
+                    'confirm-lunch',
+                    coordinates.locationName,
+                    weekStart,
+                    ACTION_TOKEN_TTL_DAYS,
+                );
                 const confirmationUrl = generateConfirmationUrl(
                     config.replyApiUrl,
                     coordinates.locationName,
                     weekStart,
+                    confirmationToken,
                 );
 
                 await slackService.sendWeatherReminder(
@@ -210,11 +219,26 @@ export const createWeatherCheckHandler = (dependencies: WeatherCheckHandlerDepen
                         );
 
                         if (canSendWarning && !alreadySentWarningToday) {
+                            const optOutToken = createActionToken(
+                                config.slackWebhookUrl,
+                                'opt-out-warnings',
+                                coordinates.locationName,
+                                weekStart,
+                                ACTION_TOKEN_TTL_DAYS,
+                            );
+                            const optOutUrl = generateConfirmationUrl(
+                                config.replyApiUrl,
+                                coordinates.locationName,
+                                weekStart,
+                                optOutToken,
+                                'opt-out-warnings',
+                            );
+
                             await slackService.sendWeatherWarning(
                                 lunchWeather.temperature,
                                 lunchWeather.description,
                                 coordinates.locationName,
-                                config.replyApiUrl,
+                                optOutUrl,
                             );
 
                             await storageService.recordMessageSent(
