@@ -1,8 +1,21 @@
-import { DeleteItemCommand, DynamoDBClient, PutItemCommand, QueryCommand, ScanCommand } from '@aws-sdk/client-dynamodb';
+import {
+    AttributeValue,
+    DeleteItemCommand,
+    DynamoDBClient,
+    PutItemCommand,
+    QueryCommand,
+    ScanCommand,
+    ScanCommandOutput,
+} from '@aws-sdk/client-dynamodb';
 import { marshall, unmarshall } from '@aws-sdk/util-dynamodb';
 import { MessageRecord, StorageService, WeeklyMessageStats } from '../interfaces/storage.interface';
 import { MAX_MESSAGES_PER_WEEK, DYNAMO_TTL_DAYS, DEFAULT_WEATHER_WARNINGS_ENABLED } from '../utils/constants';
 import { endOfWeek, format, startOfWeek, subDays } from 'date-fns';
+
+// Record types that resetCurrentWeek is contractually allowed to delete
+// ("all messages and confirmations for the current week"). Preference
+// records (weather_warning_optin) must never be deleted by a reset.
+const ALLOWABLE_RESET_MESSAGE_TYPES = new Set(['weather_reminder', 'weather_warning', 'lunch_confirmation']);
 
 export class DynamoDBStorageService implements StorageService {
     private readonly client: Pick<DynamoDBClient, 'send'>;
@@ -45,25 +58,33 @@ export class DynamoDBStorageService implements StorageService {
         const weekEnd = format(endOfWeek(now, { weekStartsOn: 1 }), 'yyyy-MM-dd');
 
         try {
-            const command = new ScanCommand({
-                TableName: this.tableName,
-                FilterExpression:
-                    '#location = :location AND #messageType = :messageType AND #date >= :weekStart AND #date <= :weekEnd',
-                ExpressionAttributeNames: {
-                    '#location': 'location',
-                    '#messageType': 'messageType',
-                    '#date': 'date',
-                },
-                ExpressionAttributeValues: marshall({
-                    ':location': location,
-                    ':messageType': messageType,
-                    ':weekStart': weekStart,
-                    ':weekEnd': weekEnd,
-                }),
-            });
+            const items: Record<string, AttributeValue>[] = [];
+            let lastEvaluatedKey: Record<string, AttributeValue> | undefined;
+            do {
+                const command = new ScanCommand({
+                    TableName: this.tableName,
+                    FilterExpression:
+                        '#location = :location AND #messageType = :messageType AND #date >= :weekStart AND #date <= :weekEnd',
+                    ExpressionAttributeNames: {
+                        '#location': 'location',
+                        '#messageType': 'messageType',
+                        '#date': 'date',
+                    },
+                    ExpressionAttributeValues: marshall({
+                        ':location': location,
+                        ':messageType': messageType,
+                        ':weekStart': weekStart,
+                        ':weekEnd': weekEnd,
+                    }),
+                    ...(lastEvaluatedKey && { ExclusiveStartKey: lastEvaluatedKey }),
+                });
 
-            const result = await this.client.send(command);
-            const messages = result.Items ? result.Items.map((item) => unmarshall(item) as MessageRecord) : [];
+                const response: ScanCommandOutput = await this.client.send(command);
+                items.push(...(response.Items ?? []));
+                lastEvaluatedKey = response.LastEvaluatedKey;
+            } while (lastEvaluatedKey);
+
+            const messages = items.map((item) => unmarshall(item) as MessageRecord);
 
             const messageCount = messages.length;
             const lastMessageDate =
@@ -160,28 +181,35 @@ export class DynamoDBStorageService implements StorageService {
         const cutoffTimestamp = cutoffDate.getTime();
 
         try {
-            // First, scan for old records
-            const scanCommand = new ScanCommand({
-                TableName: this.tableName,
-                FilterExpression: '#timestamp < :cutoffTimestamp',
-                ExpressionAttributeNames: {
-                    '#timestamp': 'timestamp',
-                },
-                ExpressionAttributeValues: marshall({
-                    ':cutoffTimestamp': cutoffTimestamp,
-                }),
-                ProjectionExpression: 'id',
-            });
+            // First, scan for old records (following LastEvaluatedKey until the scan is complete)
+            const items: Record<string, AttributeValue>[] = [];
+            let lastEvaluatedKey: Record<string, AttributeValue> | undefined;
+            do {
+                const scanCommand = new ScanCommand({
+                    TableName: this.tableName,
+                    FilterExpression: '#timestamp < :cutoffTimestamp',
+                    ExpressionAttributeNames: {
+                        '#timestamp': 'timestamp',
+                    },
+                    ExpressionAttributeValues: marshall({
+                        ':cutoffTimestamp': cutoffTimestamp,
+                    }),
+                    ProjectionExpression: 'id',
+                    ...(lastEvaluatedKey && { ExclusiveStartKey: lastEvaluatedKey }),
+                });
 
-            const scanResult = await this.client.send(scanCommand);
+                const response: ScanCommandOutput = await this.client.send(scanCommand);
+                items.push(...(response.Items ?? []));
+                lastEvaluatedKey = response.LastEvaluatedKey;
+            } while (lastEvaluatedKey);
 
-            if (!scanResult.Items || scanResult.Items.length === 0) {
+            if (items.length === 0) {
                 console.log('No old records to clean up');
                 return;
             }
 
             // Delete old records
-            const deletePromises = scanResult.Items.map(async (item) => {
+            const deletePromises = items.map(async (item) => {
                 const record = unmarshall(item) as MessageRecord;
                 const deleteCommand = new DeleteItemCommand({
                     TableName: this.tableName,
@@ -191,7 +219,7 @@ export class DynamoDBStorageService implements StorageService {
             });
 
             await Promise.all(deletePromises);
-            console.log(`Cleaned up ${scanResult.Items.length} old records`);
+            console.log(`Cleaned up ${items.length} old records`);
         } catch (error) {
             console.error('Error cleaning up old records:', error);
             throw new Error(`Failed to cleanup old records: ${error}`, { cause: error });
@@ -309,32 +337,51 @@ export class DynamoDBStorageService implements StorageService {
         const weekEnd = format(endOfWeek(now, { weekStartsOn: 1 }), 'yyyy-MM-dd');
 
         try {
-            // First, scan for all records in the current week and filter for location case-insensitively
-            const scanCommand = new ScanCommand({
-                TableName: this.tableName,
-                FilterExpression: '#date >= :weekStart AND #date <= :weekEnd',
-                ExpressionAttributeNames: {
-                    '#location': 'location',
-                    '#date': 'date',
-                },
-                ExpressionAttributeValues: marshall({
-                    ':weekStart': weekStart,
-                    ':weekEnd': weekEnd,
-                }),
-                ProjectionExpression: 'id, messageType, #location',
-            });
+            // First, scan for all records in the current week and filter for location case-insensitively.
+            // Only message types are deletable here; opt-in preference records (weather_warning_optin)
+            // must survive a reset.
+            const scannedItems: Record<string, AttributeValue>[] = [];
+            let lastEvaluatedKey: Record<string, AttributeValue> | undefined;
+            do {
+                const scanCommand = new ScanCommand({
+                    TableName: this.tableName,
+                    FilterExpression:
+                        '#date >= :weekStart AND #date <= :weekEnd AND #messageType IN (:reminder, :warning, :confirmation)',
+                    ExpressionAttributeNames: {
+                        '#location': 'location',
+                        '#date': 'date',
+                        '#messageType': 'messageType',
+                    },
+                    ExpressionAttributeValues: marshall({
+                        ':weekStart': weekStart,
+                        ':weekEnd': weekEnd,
+                        ':reminder': 'weather_reminder',
+                        ':warning': 'weather_warning',
+                        ':confirmation': 'lunch_confirmation',
+                    }),
+                    ProjectionExpression: 'id, messageType, #location',
+                    ...(lastEvaluatedKey && { ExclusiveStartKey: lastEvaluatedKey }),
+                });
 
-            const scanResult = await this.client.send(scanCommand);
+                const response: ScanCommandOutput = await this.client.send(scanCommand);
+                scannedItems.push(...(response.Items ?? []));
+                lastEvaluatedKey = response.LastEvaluatedKey;
+            } while (lastEvaluatedKey);
 
-            if (!scanResult.Items || scanResult.Items.length === 0) {
+            if (scannedItems.length === 0) {
                 console.log(`No records found in current week (${weekStart} to ${weekEnd})`);
                 return;
             }
 
-            // Filter results for case-insensitive location match
-            const locationMatches = scanResult.Items.filter((item) => {
-                const record = unmarshall(item) as Pick<MessageRecord, 'location'>;
-                return record.location.toLowerCase() === location.toLowerCase();
+            // Filter results for case-insensitive location match and the reset allowlist
+            // (defense in depth alongside the server-side FilterExpression: opt-in
+            // preference records must never be deleted by a reset)
+            const locationMatches = scannedItems.filter((item) => {
+                const record = unmarshall(item) as Pick<MessageRecord, 'location' | 'messageType'>;
+                return (
+                    ALLOWABLE_RESET_MESSAGE_TYPES.has(record.messageType) &&
+                    record.location.toLowerCase() === location.toLowerCase()
+                );
             });
 
             if (locationMatches.length === 0) {

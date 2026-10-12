@@ -182,6 +182,45 @@ describe('DynamoDBStorageService', () => {
                 'Failed to get weekly message stats',
             );
         });
+
+        it('should paginate scans until LastEvaluatedKey is absent', async () => {
+            const pageOneItems = [
+                marshall({
+                    id: 'Munich#weather_reminder#2024-01-01',
+                    messageType: 'weather_reminder',
+                    location: 'Munich',
+                    date: '2024-01-01',
+                    timestamp: 1640995200000,
+                    ttl: 1672531200,
+                }),
+            ];
+            const lastEvaluatedKey = { id: { S: 'Munich#weather_reminder#2024-01-01' } };
+            const pageTwoItems = [
+                marshall({
+                    id: 'Munich#weather_reminder#2024-01-02',
+                    messageType: 'weather_reminder',
+                    location: 'Munich',
+                    date: '2024-01-02',
+                    timestamp: 1641081600000,
+                    ttl: 1672617600,
+                }),
+            ];
+
+            mockClient.send
+                .mockResolvedValueOnce({ Items: pageOneItems, LastEvaluatedKey: lastEvaluatedKey })
+                .mockResolvedValueOnce({ Items: pageTwoItems });
+
+            const result = await storageService.getWeeklyMessageStats('Munich', 'weather_reminder');
+
+            // Exactly one continuation send, carrying the first page's LastEvaluatedKey
+            expect(mockClient.send).toHaveBeenCalledTimes(2);
+            const secondCall = mockClient.send.mock.calls[1][0];
+            expect(secondCall.input.ExclusiveStartKey).toEqual(lastEvaluatedKey);
+
+            // Count reflects both pages, so a weekly cap already reached is still detected
+            expect(result.messageCount).toBe(2);
+            expect(result.canSendMessage).toBe(false);
+        });
     });
 
     describe('canSendMessageThisWeek', () => {
@@ -318,8 +357,12 @@ describe('DynamoDBStorageService', () => {
             const scanCall = mockClient.send.mock.calls[0][0];
             expect(scanCall.input.TableName).toBe('test-table');
             expect(scanCall.input.FilterExpression).toContain('#date >= :weekStart AND #date <= :weekEnd');
+            expect(scanCall.input.FilterExpression).toContain('#messageType IN (:reminder, :warning, :confirmation)');
             expect(scanCall.input.ExpressionAttributeValues[':weekStart']).toBeDefined();
             expect(scanCall.input.ExpressionAttributeValues[':weekEnd']).toBeDefined();
+            expect(scanCall.input.ExpressionAttributeValues[':reminder'].S).toBe('weather_reminder');
+            expect(scanCall.input.ExpressionAttributeValues[':warning'].S).toBe('weather_warning');
+            expect(scanCall.input.ExpressionAttributeValues[':confirmation'].S).toBe('lunch_confirmation');
 
             // Verify delete commands were called for each record
             for (let i = 1; i < 4; i++) {
@@ -335,6 +378,66 @@ describe('DynamoDBStorageService', () => {
             await storageService.resetCurrentWeek('Munich');
 
             expect(mockClient.send).toHaveBeenCalledTimes(1); // Only scan, no deletes
+        });
+
+        it('should not delete weather_warning_optin records while deleting allowlisted types', async () => {
+            const pageOneRecords = [
+                marshall({
+                    id: 'Munich#weather_reminder#2024-01-01',
+                    date: '2024-01-01',
+                    timestamp: 1640995200000,
+                    messageType: 'weather_reminder',
+                    location: 'Munich',
+                    ttl: 1672531200,
+                }),
+                marshall({
+                    id: 'Munich#weather_warning_optin',
+                    date: '2024-01-02',
+                    timestamp: 1641081600000,
+                    messageType: 'weather_warning_optin',
+                    location: 'Munich',
+                    optedIn: true,
+                    ttl: 1672617600,
+                }),
+            ];
+            const pageTwoRecords = [
+                marshall({
+                    id: 'Munich#lunch_confirmation#2024-01-01',
+                    date: '2024-01-01',
+                    timestamp: 1641081600001,
+                    messageType: 'lunch_confirmation',
+                    location: 'Munich',
+                    ttl: 1672617601,
+                }),
+            ];
+
+            mockClient.send
+                .mockResolvedValueOnce({ Items: pageOneRecords, LastEvaluatedKey: { id: { S: 'x' } } })
+                .mockResolvedValueOnce({ Items: pageTwoRecords })
+                .mockResolvedValue({});
+
+            await storageService.resetCurrentWeek('Munich');
+
+            // 2 paginated scan sends + 2 deletes (reminder + confirmation, NOT the opt-in)
+            expect(mockClient.send).toHaveBeenCalledTimes(4);
+
+            // The scan filter now enforces the messageType allowlist
+            const scanCall = mockClient.send.mock.calls[0][0];
+            expect(scanCall.input.FilterExpression).toContain('#messageType IN (:reminder, :warning, :confirmation)');
+            expect(scanCall.input.ExpressionAttributeValues[':reminder'].S).toBe('weather_reminder');
+            expect(scanCall.input.ExpressionAttributeValues[':warning'].S).toBe('weather_warning');
+            expect(scanCall.input.ExpressionAttributeValues[':confirmation'].S).toBe('lunch_confirmation');
+
+            // The continuation send carries ExclusiveStartKey from the first page
+            const secondScanCall = mockClient.send.mock.calls[1][0];
+            expect(secondScanCall.input.ExclusiveStartKey).toEqual({ id: { S: 'x' } });
+
+            // Only the allowlisted records were deleted; the opt-in survives
+            const deleteKeys = mockClient.send.mock.calls.slice(2).map((call) => call[0].input.Key['id'].S as string);
+            expect(deleteKeys).toHaveLength(2);
+            expect(deleteKeys).toContain('Munich#weather_reminder#2024-01-01');
+            expect(deleteKeys).toContain('Munich#lunch_confirmation#2024-01-01');
+            expect(deleteKeys).not.toContain('Munich#weather_warning_optin');
         });
 
         it('should handle undefined items in scan result', async () => {
